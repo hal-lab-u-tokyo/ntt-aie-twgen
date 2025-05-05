@@ -1,0 +1,372 @@
+
+.label NTT_stage_up
+.function_start
+        5632    0x03 0xe7 0xc8 0x01 0x80 0x4b 0x20 0x3f 0xf8 0xbb                                MOVA r31, #31;                                                                            MOVX r24, #2;                 ADD.NC r25, r0, #-1
+        5642    0x00 0x00 0x00 0x83 0x66 0x7f 0xf8 0x43                                                                                                                                    EVENT #0;                     ADD.NC r27, r25, #-1
+        5650    0x00 0x05 0xdf 0xfb 0x86 0xc3 0xb8 0x43                                                                                                                                    ADD r29, r2, #-1;             ADD.NC r28, r27, #2
+        5658    0x00 0x03 0xce 0x0c 0x07 0x3b 0xb8 0x43                                                                                                                                    SUB r28, r1, r28;             ADD.NC r0, r28, #-6
+        5666    0x17 0x39 0x8d 0x99                                                                                                                                                        LSHL r28, r28, r24
+        5670    0x00 0x3f 0xf0 0x3e 0x17 0x0b 0x28 0x43                                                                                                                                    EQ r31, r31, r0;              MOV dj0, r28
+        5678    0x03 0x10 0x8c 0x59                                                              LDA r6, [p3, dj0]
+        5682    0x00 0x01                                                                        NOPX
+        5684    0xf8 0x0d 0x60 0x40 0x01 0x95                                                                                                                                              JNZ r31, #6848
+.delay_slot
+        5690    0x00 0x26 0x88 0x03 0x20 0x04 0x2c 0x8f 0xc2 0x3b 0x28 0xb7                      MOVA r26, #1;                 PADDB [sp], #32;                                            SUB r2, r2, r25;              MOV r30, p2
+.delay_slot
+        5702    0xff 0xef 0xd0 0x35 0x7e 0xec 0x25 0xcb 0x29 0x3b                                                                                            ST p7, [sp, #-8];             LSHL r23, r26, r29;           MOV r1, r23
+.delay_slot
+        5712    0xff 0xfe 0xd0 0x35 0xc0 0x6c 0x20 0xc3 0xd9 0x3b                                                                                            ST p6, [sp, #-4];             LSHL r28, r26, r0;            VBCST.32 x0, r3
+.delay_slot
+        5722    0xff 0xd9 0xd0 0x34 0x01 0x6c 0x45 0x8b 0x29 0x3b                                                                                            ST p1, [sp, #-12];            LSHL r0, r26, r2;             MOV r2, r22
+.delay_slot
+        5732    0xff 0xc8 0xd0 0x35 0x6d 0xec 0xe1 0x83 0xd9 0x3b                                                                                            ST p0, [sp, #-16];            LSHL r22, r26, r27;           VBCST.32 x3, r6
+        5742    0x00 0x47 0x48 0x00 0x01 0xc3 0x1a 0x1a 0x10 0xbb                                MOVA r29, #2;                                                                             MOVXM p6, #459828
+.noswbrkpt
+        5752    0xc0 0x55 0xc8 0x00 0x01 0xc3 0x1a 0x18 0x10 0xbb                                LDA r23, [p6, #0];                                                                        MOVXM p6, #459824
+.nohwbrkpt
+.noswbrkpt
+        5762    0xff 0xe1 0x88 0x2e 0xcc 0x6c 0x61 0x53 0xd8 0xbb                                MOVA r6, #-1;                                                                             LSHL r12, r23, r24;           VBCSTSHFL.32 x1, r5, r29
+        5772    0x00 0x06 0x48 0x35 0xbc 0xec 0xa0 0xd3 0xd8 0xbb                                MOVA r25, #0;                                                                             LSHL r27, r26, r25;           VBCSTSHFL.32 x2, r3, r29
+.noswbrkpt
+        5782    0xc0 0x55 0x88 0x36 0x9e 0xed 0x26 0x43 0xd8 0xbb                                LDA r22, [p6, #0];                                                                        LSHL r9, r27, r29;            VBCST.32 x4, r25
+.nohwbrkpt
+.noswbrkpt
+        5792    0x00 0x67 0x48 0x01 0xfe 0xd4 0x26 0x0d 0x38 0xbb                                MOVA r29, #3;                                                                             LT r31, r0, r29;              VSHUFFLE bml0, x3, x4, r24
+.nohwbrkpt
+.noswbrkpt
+        5802    0x01 0xe2 0xc8 0x35 0xbe 0x56 0x27 0x4d 0x38 0xbb                                MOVA r11, #15;                                                                            LT r27, r26, r28;             VSHUFFLE bmh0, x3, x4, r29
+.nohwbrkpt
+.noswbrkpt
+        5812    0x00 0x08 0x5f 0xd8 0xe1 0x53 0xd8 0x43                                                                                                                                    ADD r5, r4, #-2;              VBCSTSHFL.32 x3, r5, r29
+.nohwbrkpt
+.noswbrkpt
+        5820    0x00 0xe1 0x08 0x00 0xa3 0x74 0x59 0x47 0x38 0xbb                                MOVA r4, #7;                                                                              ASHL r10, r0, r6;             ADD.NC s0, r5, #4
+.nohwbrkpt
+.noswbrkpt
+        5830    0x02 0x02 0x08 0x2c 0x5c 0x6d 0x59 0x4b 0x28 0xbb                                MOVA r8, #16;                                                                             LSHL r5, r22, r24;            MOV s1, r5
+        5840    0x00 0x34 0x7e 0x30 0x31 0x4b 0x28 0x43                                                                                                                                    SEL.EQZ r7, r26, r28, r27;    MOV m1, r5
+        5848    0x02 0x20 0x08 0x35 0xb5 0x54 0x52 0x4b 0x28 0xbb                                MOVA r0, #17;                                                                             LT r27, r26, r10;             MOV m2, r9
+        5858    0x00 0x2f 0x75 0xa4 0x90 0x43 0x68 0x43                                                                                                                                    AND r23, r23, r11;            VMOV bml2, bmh0
+        5866    0x6b 0x40 0xc8 0x35 0xa5 0x31 0x60 0xd3 0xd8 0xbb                                MOVA r3, #858;                                                                            SEL.EQZ r26, r26, r10, r27;   VBCSTSHFL.32 x5, r3, r29
+        5876    0x2b 0x46 0xc8 0x00 0x00 0x04 0x3c 0x38 0x10 0xbb                                MOVA r27, #346;                                                                           MOVXM ls, #6256
+        5886    0x00 0xc2 0x88 0x00 0x00 0x06 0x3d 0x38 0x10 0xbb                                MOVA r10, #6;                                                                             MOVXM le, #6768
+        5896    0x00 0x2d 0x21 0x00 0xe1 0xff 0xf8 0x43                                                                                                                                    MOVX crSat, r22;              ADD.NC r7, r7, #-1
+        5904    0x00 0x2e 0xc1 0x00 0xb0 0x03 0x68 0x43                                                                                                                                    MOVX crRnd, r23;              VMOV bmh2, bml0
+        5912    0x18 0x26 0x16 0x59                                                                                                                                                                                      MOV m0, r12
+        5916    0x00 0x00 0x02 0x8c 0xb4 0x55                                                                                                                                              MOVXM r5, #1626
+        5922    0x00 0x00 0x04 0x88 0xb4 0x55                                                                                                                                              MOVXM r9, #1114
+        5928    0x00 0x00 0x00 0x02 0x58 0x03 0x40 0x03                                                                                                      NOPS;                                                       MOV s2, #0
+.label TGT_FNTT_stage_up_304
+.loop_nesting 1
+        5936    0x00 0x33 0x63 0x36 0x01 0x03 0x68 0x43                                                                                                                                    XOR r22, r25, r6;             VMOV x8, bml2
+        5944    0x00 0x2c 0xbe 0x05 0x81 0x43 0x68 0x43                                                                                                                                    ADD r11, r22, r28;            VMOV x6, bmh2
+        5952    0x12 0xec 0xad 0x99                                                                                                                                                        LSHL r22, r11, r10
+        5956    0x18 0xeb 0x16 0x59                                                                                                                                                                                      MOV m3, r22
+        5960    0x3a 0x6b 0x08 0x19                                                                                            PADDB [p2], m3
+        5964    0x3a 0x2e 0xa8 0x19                                                                                            VLDB wh10, [p2, #32]
+        5968    0x3a 0x0e 0x88 0x19                                                                                            VLDB wl10, [p2, #0]
+        5972    0x00 0x01                                                                        NOPX
+        5974    0x00 0x01                                                                        NOPX
+        5976    0x00 0x01                                                                        NOPX
+        5978    0x00 0x01                                                                        NOPX
+        5980    0x00 0x01                                                                        NOPX
+        5982    0x00 0x01                                                                        NOPX
+        5984    0x1b 0x8e 0xd0 0xf9                                                                                                                                                                                      VSHUFFLE x7, x10, x1, r29
+        5988    0x1c 0x8c 0x50 0xf9                                                                                                                                                                                      VSHUFFLE x9, x10, x1, r24
+        5992    0x02 0x2c 0x56 0xc6 0x1f 0xa1 0xe0 0x23                                                                                                                                                                  VMOV bml4, x10;                         VMUL cm8, x8, x7, r3
+        6000    0x00 0x01                                                                        NOPX
+        6002    0x2c 0x22 0x60 0x09                                                                                                                                                                                                                              VMAC cm8, cm8, x8, x9, r5
+        6006    0x00 0x01                                                                        NOPX
+        6008    0xdc 0x19 0xe0 0x09                                                                                                                                                                                                                              VMAC cm8, cm8, x6, x7, r27
+        6012    0x00 0x01                                                                        NOPX
+        6014    0x4c 0x1a 0x60 0x09                                                                                                                                                                                                                              VMAC cm8, cm8, x6, x9, r9
+        6018    0x00 0x01                                                                        NOPX
+        6020    0x00 0x01                                                                        NOPX
+        6022    0x00 0x01                                                                        NOPX
+        6024    0x00 0x01                                                                        NOPX
+        6026    0x0c 0x3d 0xe0 0x99                                                                                                                          VSRS.s32.s64 x8, cm8, s1
+        6030    0x0b 0x3e 0xe0 0x99                                                                                                                          VSRS.s32.s64 x6, cm8, s2
+        6034    0x00 0x01                                                                        NOPX
+        6036    0x00 0x01                                                                        NOPX
+        6038    0x1d 0x0e 0xc2 0x79                                                                                                                                                                                      VSHUFFLE x10, x8, x4, r29
+        6042    0x1c 0x0c 0x42 0x79                                                                                                                                                                                      VSHUFFLE x8, x8, x4, r24
+        6046    0x1f 0xa8 0xe0 0x09                                                                                                                                                                                                                              VMUL cm8, x10, x3, r3
+        6050    0x00 0x01                                                                        NOPX
+        6052    0x2c 0x28 0x60 0x09                                                                                                                                                                                                                              VMAC cm8, cm8, x10, x1, r5
+        6056    0x00 0x01                                                                        NOPX
+        6058    0xdc 0x20 0xe0 0x09                                                                                                                                                                                                                              VMAC cm8, cm8, x8, x3, r27
+        6062    0x00 0x01                                                                        NOPX
+        6064    0x4c 0x20 0x60 0x09                                                                                                                                                                                                                              VMAC cm8, cm8, x8, x1, r9
+        6068    0x00 0x01                                                                        NOPX
+        6070    0x00 0x01                                                                        NOPX
+        6072    0x00 0x01                                                                        NOPX
+        6074    0x00 0x01                                                                        NOPX
+        6076    0x0c 0x3c 0xe0 0x99                                                                                                                          VSRS.s32.s64 x8, cm8, s0
+        6080    0x00 0x01                                                                        NOPX
+        6082    0x00 0x01                                                                        NOPX
+        6084    0x00 0x01                                                                        NOPX
+        6086    0x1d 0x0e 0xc2 0x79                                                                                                                                                                                      VSHUFFLE x10, x8, x4, r29
+        6090    0x1c 0x0c 0x42 0x79                                                                                                                                                                                      VSHUFFLE x8, x8, x4, r24
+        6094    0x1f 0xa9 0x60 0x09                                                                                                                                                                                                                              VMUL cm8, x10, x5, r3
+        6098    0x00 0x01                                                                        NOPX
+        6100    0x2c 0x28 0xa0 0x09                                                                                                                                                                                                                              VMAC cm8, cm8, x10, x2, r5
+        6104    0x00 0x01                                                                        NOPX
+        6106    0xdc 0x21 0x60 0x09                                                                                                                                                                                                                              VMAC cm8, cm8, x8, x5, r27
+        6110    0x00 0x01                                                                        NOPX
+        6112    0x4c 0x20 0xa0 0x09                                                                                                                                                                                                                              VMAC cm8, cm8, x8, x2, r9
+        6116    0x00 0x01                                                                        NOPX
+        6118    0x00 0x01                                                                        NOPX
+        6120    0x00 0x01                                                                        NOPX
+        6122    0x00 0x01                                                                        NOPX
+        6124    0x0c 0x3e 0xe0 0x99                                                                                                                          VSRS.s32.s64 x8, cm8, s2
+        6128    0x00 0x01                                                                        NOPX
+        6130    0x00 0x01                                                                        NOPX
+        6132    0x00 0x01                                                                        NOPX
+        6134    0x1b 0x01 0x34 0x59                                                                                                                                                                                      VSUB.32 x6, x6, x8
+        6138    0x18 0x6c 0xb0 0x59                                                                                                                                                                                      VLT.s32 r22, x6, x0
+        6142    0xf8 0x0d 0x40 0x40 0x01 0x95                                                                                                                                              JNZ r31, #6784
+.delay_slot
+.swstall delay_slot
+        6148    0x00 0x01                                                                        NOPX
+.delay_slot
+        6150    0x15 0xac 0xbc 0x19                                                                                                                                                        EXTEND.u16 r22, r22
+.delay_slot
+        6154    0x1c 0x62 0x02 0x59                                                                                                                                                                                      VSEL.32 x8, x0, x4, r22
+.delay_slot
+        6158    0x1b 0x01 0x34 0x59                                                                                                                                                                                      VSUB.32 x6, x6, x8
+.delay_slot
+        6162    0x1a 0x6c 0x36 0xd9                                                                                                                                                                                      VMOV bmh4, x6
+        6166    0xff 0xcf 0xd8 0x16 0xe5 0x6e 0x07 0x58 0x78 0xbb                                LDA p7, [sp, #-16];                                                                       LSHL r14, r11, r10;           VSHUFFLE x8, x6, x1, r29
+        6176    0xff 0xde 0xd8 0xe7 0x16 0x4d                                                    LDA p6, [sp, #-12];                                                                                                     MOV m3, r14
+        6182    0x1b 0xac 0x4e 0xd9                                                                                                                                                                                      VMOV bml7, x9
+        6186    0x1b 0x0c 0x30 0xf9                                                                                                                                                                                      VSHUFFLE x6, x6, x1, r24
+        6190    0x1d 0x7d 0x16 0x59                                                                                                                                                                                      MOV lc, r26
+        6194    0x00 0x01                                                                        NOPX
+        6196    0x00 0x01                                                                        NOPX
+        6198    0x3f 0x6b 0x08 0x19                                                                                            PADDB [p7], m3
+        6202    0x06 0x6b 0x08 0x3e 0x76 0x45                                                                                  PADDB [p6], m3;                                                                           MOV p0, p7
+        6208    0x00 0x0b 0x0a 0x3c 0x76 0x45                                                                                  PADDB [p0], m0;                                                                           MOV p2, p6
+        6214    0x45 0x06 0x30 0x2b 0x08 0x02 0x98 0x3b 0x2e 0xbb                                PADDA [p2], m1;               PADDB [p0], m1;                                                                           MOV p5, p0
+        6224    0x07 0x2b 0x0c 0x3e 0x76 0x45                                                                                  PADDB [p7], m1;                                                                           MOV p4, p7
+        6230    0x00 0x00 0x02 0x0b 0x08 0x00 0x9a 0x3b 0x2e 0xbb                                NOPA;                         PADDB [p2], m0;                                                                           MOV p1, p2
+        6240    0xc1 0x61 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x01 0x9e 0x3b 0x28 0x00 0x03 0xc0  NOPA;                         PADDB [p6], m0;               NOPS;                         NOPX;                         MOV p3, p6;                             NOPV
+.label ZLS_FNTT_stage_up_624
+.loop_nesting 2
+.begin_of_loop
+        6256    0x07 0x2e 0xad 0x87 0x06 0xc5                                                                                  VLDB wh10, [p7, #32];                                                                     VMOV x11, bml7
+        6262    0x3f 0x4a 0x88 0x19                                                                                            VLDB wl10, [p7], m2
+        6266    0x00 0x01                                                                        NOPX
+        6268    0x00 0x01                                                                        NOPX
+        6270    0x00 0x01                                                                        NOPX
+        6272    0x00 0x01                                                                        NOPX
+        6274    0x00 0x01                                                                        NOPX
+        6276    0x00 0x01                                                                        NOPX
+        6278    0x1c 0x8e 0xd2 0x79                                                                                                                                                                                      VSHUFFLE x9, x10, x4, r29
+        6282    0x1d 0x0c 0x52 0x79                                                                                                                                                                                      VSHUFFLE x10, x10, x4, r24
+        6286    0x1f 0xa5 0xc0 0x09                                                                                                                                                                                                                              VMUL cm0, x9, x7, r3
+        6290    0x00 0x01                                                                        NOPX
+        6292    0x28 0x26 0xc0 0x09                                                                                                                                                                                                                              VMAC cm0, cm0, x9, x11, r5
+        6296    0x00 0x01                                                                        NOPX
+        6298    0xd8 0x29 0xc0 0x09                                                                                                                                                                                                                              VMAC cm0, cm0, x10, x7, r27
+        6302    0x00 0x01                                                                        NOPX
+        6304    0x48 0x2a 0xc0 0x09                                                                                                                                                                                                                              VMAC cm0, cm0, x10, x11, r9
+        6308    0x00 0x01                                                                        NOPX
+        6310    0x00 0x01                                                                        NOPX
+        6312    0x00 0x01                                                                        NOPX
+        6314    0x00 0x01                                                                        NOPX
+        6316    0x0d 0x3d 0xc0 0x99                                                                                                                          VSRS.s32.s64 x10, cm0, s1
+        6320    0x0c 0xbe 0xc0 0x99                                                                                                                          VSRS.s32.s64 x9, cm0, s2
+        6324    0x00 0x01                                                                        NOPX
+        6326    0x00 0x01                                                                        NOPX
+        6328    0x1d 0x8e 0xd2 0x79                                                                                                                                                                                      VSHUFFLE x11, x10, x4, r29
+        6332    0x1d 0x0c 0x52 0x79                                                                                                                                                                                      VSHUFFLE x10, x10, x4, r24
+        6336    0x1f 0xac 0xc4 0x09                                                                                                                                                                                                                              VMUL cm1, x11, x3, r3
+        6340    0x00 0x01                                                                        NOPX
+        6342    0x28 0xac 0x44 0x09                                                                                                                                                                                                                              VMAC cm1, cm1, x11, x1, r5
+        6346    0x00 0x01                                                                        NOPX
+        6348    0xd8 0xa8 0xc4 0x09                                                                                                                                                                                                                              VMAC cm1, cm1, x10, x3, r27
+        6352    0x00 0x01                                                                        NOPX
+        6354    0x48 0xa8 0x44 0x09                                                                                                                                                                                                                              VMAC cm1, cm1, x10, x1, r9
+        6358    0x00 0x01                                                                        NOPX
+        6360    0x00 0x01                                                                        NOPX
+        6362    0x00 0x01                                                                        NOPX
+        6364    0x00 0x01                                                                        NOPX
+        6366    0x0d 0xbc 0xc4 0x99                                                                                                                          VSRS.s32.s64 x11, cm1, s0
+        6370    0x00 0x01                                                                        NOPX
+.noswbrkpt
+        6372    0x3c 0x2e 0xa8 0x19                                                                                            VLDB wh10, [p4, #32]
+.nohwbrkpt
+.noswbrkpt
+        6376    0x3c 0x4a 0x88 0x19                                                                                            VLDB wl10, [p4], m2
+.nohwbrkpt
+.noswbrkpt
+        6380    0x1d 0x0e 0xda 0x79                                                                                                                                                                                      VSHUFFLE x10, x11, x4, r29
+.nohwbrkpt
+.noswbrkpt
+        6384    0x1d 0x8c 0x5a 0x79                                                                                                                                                                                      VSHUFFLE x11, x11, x4, r24
+.nohwbrkpt
+.noswbrkpt
+        6388    0x1f 0xa9 0x4c 0x09                                                                                                                                                                                                                              VMUL cm3, x10, x5, r3
+.nohwbrkpt
+.noswbrkpt
+        6392    0x00 0x01                                                                        NOPX
+.nohwbrkpt
+.noswbrkpt
+        6394    0x29 0xa8 0x8c 0x09                                                                                                                                                                                                                              VMAC cm3, cm3, x10, x2, r5
+        6398    0x00 0x01                                                                        NOPX
+        6400    0xd9 0xad 0x4c 0x09                                                                                                                                                                                                                              VMAC cm3, cm3, x11, x5, r27
+        6404    0x00 0x01                                                                        NOPX
+        6406    0x49 0xac 0x8c 0x09                                                                                                                                                                                                                              VMAC cm3, cm3, x11, x2, r9
+        6410    0x00 0x01                                                                        NOPX
+        6412    0x00 0x01                                                                        NOPX
+        6414    0x00 0x01                                                                        NOPX
+        6416    0x00 0x01                                                                        NOPX
+        6418    0x0d 0xbe 0xcc 0x99                                                                                                                          VSRS.s32.s64 x11, cm3, s2
+        6422    0x00 0x01                                                                        NOPX
+        6424    0x00 0x01                                                                        NOPX
+        6426    0x00 0x01                                                                        NOPX
+        6428    0x1c 0x81 0x4d 0xd9                                                                                                                                                                                      VSUB.32 x9, x9, x11
+        6432    0x18 0x7c 0xc8 0x59                                                                                                                                                                                      VLT.s32 r23, x9, x0
+        6436    0x00 0x01                                                                        NOPX
+        6438    0x15 0xee 0xbc 0x19                                                                                                                                                        EXTEND.u16 r23, r23
+        6442    0x1d 0xf2 0x02 0x59                                                                                                                                                                                      VSEL.32 x11, x0, x4, r23
+        6446    0x1c 0x81 0x4d 0xd9                                                                                                                                                                                      VSUB.32 x9, x9, x11
+        6450    0x1d 0x80 0x50 0x59                                                                                                                                                                                      VADD.32 x11, x10, x0
+        6454    0x1d 0x00 0x54 0xd9                                                                                                                                                                                      VADD.32 x10, x10, x9
+        6458    0x18 0x7c 0xd0 0x59                                                                                                                                                                                      VLT.s32 r23, x10, x0
+        6462    0x1c 0x81 0x5c 0xd9                                                                                                                                                                                      VSUB.32 x9, x11, x9
+        6466    0x00 0x2f 0x75 0xe0 0x36 0x64 0x28 0x43                                                                                                                                    EXTEND.u16 r23, r23;          VLT.s32 r22, x9, x0
+        6474    0x1d 0xf2 0x02 0x59                                                                                                                                                                                      VSEL.32 x11, x0, x4, r23
+        6478    0x00 0x2d 0x65 0xe2 0x80 0xaa 0xe8 0x43                                                                                                                                    EXTEND.u16 r22, r22;          VSUB.32 x10, x10, x11
+        6486    0x1d 0xe2 0x02 0x59                                                                                                                                                                                      VSEL.32 x11, x0, x4, r22
+        6490    0x60 0xd5 0x78 0x02 0x40 0xa6 0xe0 0x03                                                                                                      VST wh10, [p3, #32];                                        VSUB.32 x9, x9, x11
+        6498    0x0b 0x48 0xa9 0xd9                                                                                                                          VST wl10, [p3], m2
+        6502    0x09 0x06 0xa7 0xd9                                                                                                                          VST wh9, [p1, #32]
+        6506    0x09 0x48 0xa5 0xd9                                                                                                                          VST wl9, [p1], m2
+        6510    0x38 0x2e 0xa8 0x19                                                                                            VLDB wh10, [p0, #32]
+        6514    0x38 0x4a 0x88 0x19                                                                                            VLDB wl10, [p0], m2
+        6518    0x3d 0x2e 0x68 0x19                                                                                            VLDB wh9, [p5, #32]
+        6522    0x3d 0x4a 0x48 0x19                                                                                            VLDB wl9, [p5], m2
+        6526    0x00 0x01                                                                        NOPX
+        6528    0x00 0x01                                                                        NOPX
+        6530    0x00 0x01                                                                        NOPX
+        6532    0x00 0x01                                                                        NOPX
+        6534    0x1d 0x8e 0xd2 0x79                                                                                                                                                                                      VSHUFFLE x11, x10, x4, r29
+        6538    0x1d 0x0c 0x52 0x79                                                                                                                                                                                      VSHUFFLE x10, x10, x4, r24
+        6542    0x1f 0xae 0x14 0x09                                                                                                                                                                                                                              VMUL cm5, x11, x8, r3
+        6546    0x00 0x01                                                                        NOPX
+        6548    0x2a 0xad 0x94 0x09                                                                                                                                                                                                                              VMAC cm5, cm5, x11, x6, r5
+        6552    0x00 0x01                                                                        NOPX
+        6554    0xda 0xaa 0x14 0x09                                                                                                                                                                                                                              VMAC cm5, cm5, x10, x8, r27
+        6558    0x00 0x01                                                                        NOPX
+        6560    0x4a 0xa9 0xa0 0x09                                                                                                                                                                                                                              VMAC cm8, cm5, x10, x6, r9
+        6564    0x00 0x01                                                                        NOPX
+        6566    0x00 0x01                                                                        NOPX
+        6568    0x00 0x01                                                                        NOPX
+        6570    0x00 0x01                                                                        NOPX
+        6572    0x0d 0x3d 0xe0 0x99                                                                                                                          VSRS.s32.s64 x10, cm8, s1
+        6576    0x00 0x01                                                                        NOPX
+        6578    0x00 0x01                                                                        NOPX
+        6580    0x00 0x01                                                                        NOPX
+        6582    0x1d 0x8e 0xd2 0x79                                                                                                                                                                                      VSHUFFLE x11, x10, x4, r29
+        6586    0x1d 0x0c 0x52 0x79                                                                                                                                                                                      VSHUFFLE x10, x10, x4, r24
+        6590    0x1f 0xac 0xd4 0x09                                                                                                                                                                                                                              VMUL cm5, x11, x3, r3
+        6594    0x00 0x01                                                                        NOPX
+        6596    0x2a 0xac 0x54 0x09                                                                                                                                                                                                                              VMAC cm5, cm5, x11, x1, r5
+        6600    0x00 0x01                                                                        NOPX
+        6602    0xda 0xa8 0xd4 0x09                                                                                                                                                                                                                              VMAC cm5, cm5, x10, x3, r27
+        6606    0x00 0x01                                                                        NOPX
+        6608    0x4a 0xa8 0x58 0x09                                                                                                                                                                                                                              VMAC cm6, cm5, x10, x1, r9
+        6612    0x00 0x01                                                                        NOPX
+        6614    0x00 0x01                                                                        NOPX
+        6616    0x00 0x01                                                                        NOPX
+        6618    0x00 0x01                                                                        NOPX
+        6620    0x0d 0xbc 0xd8 0x99                                                                                                                          VSRS.s32.s64 x11, cm6, s0
+        6624    0x00 0x01                                                                        NOPX
+        6626    0x00 0x01                                                                        NOPX
+        6628    0x00 0x01                                                                        NOPX
+        6630    0x1d 0x0e 0xda 0x79                                                                                                                                                                                      VSHUFFLE x10, x11, x4, r29
+.noswbrkpt
+        6634    0xa7 0xdc 0x10 0x02 0xc6 0x2d 0x30 0x03                                                                                                      VSRS.s32.s64 x10, cm8, s2;                                  VSHUFFLE x11, x11, x4, r24
+.nohwbrkpt
+.noswbrkpt
+        6642    0x1f 0xa9 0x58 0x09                                                                                                                                                                                                                              VMUL cm6, x10, x5, r3
+.nohwbrkpt
+.noswbrkpt
+        6646    0x00 0x01                                                                        NOPX
+.nohwbrkpt
+.noswbrkpt
+        6648    0x2b 0x28 0x98 0x09                                                                                                                                                                                                                              VMAC cm6, cm6, x10, x2, r5
+        6652    0x00 0x01                                                                        NOPX
+        6654    0xdb 0x2d 0x58 0x09                                                                                                                                                                                                                              VMAC cm6, cm6, x11, x5, r27
+        6658    0x00 0x01                                                                        NOPX
+        6660    0x4b 0x2c 0x98 0x09                                                                                                                                                                                                                              VMAC cm6, cm6, x11, x2, r9
+        6664    0x00 0x01                                                                        NOPX
+        6666    0x00 0x01                                                                        NOPX
+        6668    0x00 0x01                                                                        NOPX
+        6670    0x00 0x01                                                                        NOPX
+        6672    0x0d 0xbe 0xd8 0x99                                                                                                                          VSRS.s32.s64 x11, cm6, s2
+        6676    0x00 0x01                                                                        NOPX
+        6678    0x00 0x01                                                                        NOPX
+        6680    0x00 0x01                                                                        NOPX
+        6682    0x1d 0x01 0x55 0xd9                                                                                                                                                                                      VSUB.32 x10, x10, x11
+        6686    0x18 0x6c 0xd0 0x59                                                                                                                                                                                      VLT.s32 r22, x10, x0
+        6690    0x00 0x01                                                                        NOPX
+        6692    0x15 0xac 0xbc 0x19                                                                                                                                                        EXTEND.u16 r22, r22
+        6696    0x1d 0xe2 0x02 0x59                                                                                                                                                                                      VSEL.32 x11, x0, x4, r22
+        6700    0x1d 0x01 0x55 0xd9                                                                                                                                                                                      VSUB.32 x10, x10, x11
+        6704    0x1d 0x80 0x48 0x59                                                                                                                                                                                      VADD.32 x11, x9, x0
+        6708    0x1c 0x80 0x4d 0x59                                                                                                                                                                                      VADD.32 x9, x9, x10
+        6712    0x18 0x6c 0xc8 0x59                                                                                                                                                                                      VLT.s32 r22, x9, x0
+        6716    0x1d 0x81 0x5d 0x59                                                                                                                                                                                      VSUB.32 x11, x11, x10
+        6720    0x00 0x2d 0x75 0xe0 0x36 0x6c 0x28 0x43                                                                                                                                    EXTEND.u16 r23, r22;          VLT.s32 r22, x11, x0
+        6728    0x1d 0x72 0x02 0x59                                                                                                                                                                                      VSEL.32 x10, x0, x4, r23
+        6732    0x00 0x2d 0x65 0xe2 0x40 0xa6 0xa8 0x43                                                                                                                                    EXTEND.u16 r22, r22;          VSUB.32 x9, x9, x10
+        6740    0x00 0x01                                                                        NOPX
+.noswbrkpt
+        6742    0xc0 0xd4 0xf8 0x02 0x71 0x01 0x20 0x03                                                                                                      VST wh9, [p6, #32];                                         VSEL.32 x9, x0, x4, r22
+.nohwbrkpt
+.noswbrkpt
+        6750    0xc9 0x14 0xb8 0x02 0x40 0xae 0x60 0x03                                                                                                      VST wl9, [p6], m2;                                          VSUB.32 x9, x11, x9
+        6758    0x00 0x01                                                                        NOPX
+        6760    0x40 0xd4 0xf8 0x00 0x00 0x03 0x80 0x03                                                                                                      VST wh9, [p2, #32];                                         NOPM
+.label ZLE_FNTT_stage_up_1136
+.end_of_loop
+        6768    0x00 0x00 0x00 0x00 0x02 0x48 0xa5 0xc0 0x00 0x00 0x00 0x03 0x88 0x00 0x03 0xc0  NOPA;                         NOPB;                         VST wl9, [p2], m2;            NOPX;                         NOPM;                                   NOPV
+.label TGT_FNTT_stage_up_1152
+.loop_nesting 1
+        6784    0x00 0x17 0x62 0x6e 0x02 0x03 0x68 0x43                                                                                                                                    LSHL r22, r11, r4;            VMOV x8, bml4
+        6792    0x1b 0x04 0x86 0xd9                                                                                                                                                                                      VMOV x6, bmh4
+        6796    0x00 0x00 0x1c 0x6e 0x60 0x55                                                                                                                                              MOVXM p6, #5936
+        6802    0x18 0xeb 0x16 0x59                                                                                                                                                                                      MOV m3, r22
+        6806    0x1f 0x3f 0x16 0x59                                                                                                                                                                                      MOV p7, r30
+        6810    0x00 0x0e 0x7c 0x61 0xc2 0x21 0xb8 0x43                                                                                                                                    JNZD r7, r7, p6;              VSHUFFLE x7, x8, x6, r8
+.delay_slot
+        6818    0x3f 0x6b 0x08 0x19                                                                                            PADDB [p7], m3
+.delay_slot
+        6822    0xe0 0xd3 0xf8 0x01 0x80 0x21 0xb0 0x03                                                                                                      VST wh7, [p7, #32];                                         VSHUFFLE x6, x8, x6, r0
+.delay_slot
+        6830    0x0f 0x05 0x9d 0xd9                                                                                                                          VST wl7, [p7], #64
+.delay_slot
+        6834    0x0f 0x06 0x9b 0xd9                                                                                                                          VST wh6, [p7, #32]
+.delay_slot
+        6838    0xe0 0x53 0x38 0x33 0x90 0x39 0x1f 0x8b 0x29 0x3b                                                                                            VST wl6, [p7, #0];            ADD r25, r25, #1;             MOV p2, r30
+.label TGT_FNTT_stage_up_1216
+.loop_nesting 0
+        6848    0x07 0xff 0x7e 0xd9                                                              LDA p7, [sp, #-8]
+        6852    0x07 0xff 0xf6 0xd9                                                              LDA p6, [sp, #-4]
+        6856    0x10 0x00 0x18 0x19                                                                                                                                                        RET lr
+.delay_slot
+.swstall delay_slot
+        6860    0x00 0x01                                                                        NOPX
+.delay_slot
+.swstall delay_slot
+        6862    0x00 0x01                                                                        NOPX
+.delay_slot
+.swstall delay_slot
+        6864    0x00 0x01                                                                        NOPX
+.delay_slot
+        6866    0x1d 0xc0 0x96 0x59                                                                                                                                                                                      MOV r23, r1
+.delay_slot
+        6870    0x07 0xff 0xe0 0x10 0x00 0x82 0xc0 0x8b 0x28 0x3b                                                              PADDB [sp], #-32;                                           EVENT #1;                     MOV r22, r2
+.label NTT_stage_up__end

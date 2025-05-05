@@ -1,0 +1,79 @@
+.label _Z14vector_barrettRN3aie6vectorIiLj16EEES2_S2_S2_i
+.function_start
+        1440    0x00 0x50 0xba 0x0d 0x48 0x01 0x80 0x6b 0x20 0x03 0x48 0xb7                      VLDA wl1, [p0, #0];           VLDB wl5, [p2, #0];                                         MOVX r24, #3;                 MOV r25, #0
+        1452    0x00 0xd0 0xfa 0x2d 0x68 0x01 0x90 0x48 0x26 0x43 0xd8 0xb7                      VLDA wh1, [p0, #32];          VLDB wh5, [p2, #32];                                        MOVX r25, #2;                 VBCST.32 x0, r25
+        1464    0x6b 0x46 0x8b 0x0c 0xc8 0x00 0x00 0x03 0x63 0x2d 0x10 0xb7                      MOVA r26, #858;               VLDB wl3, [p3, #0];                                         MOVXM r27, #1626
+        1476    0x2b 0x47 0x0b 0x2c 0xe8 0x00 0x01 0xc1 0x9a 0x1a 0x10 0xb7                      MOVA r28, #346;               VLDB wh3, [p3, #32];                                        MOVXM p3, #459828
+        1488    0x60 0x57 0x49 0x0c 0x88 0x00 0x11 0xe8 0x00 0x3f 0xb8 0xb7                      LDA r29, [p3, #0];            VLDB wl2, [p1, #0];                                         MOVX r1, #15;                 ADD.NC r0, r0, #-2
+        1500    0x01 0x2c 0xa8 0x00 0x01 0xc1 0x9a 0x18 0x10 0x3b                                                              VLDB wh2, [p1, #32];                                        MOVXM p3, #459824
+        1510    0x60 0x57 0x88 0x00 0x00 0x03 0xe2 0x2d 0x10 0xbb                                LDA r30, [p3, #0];                                                                        MOVXM r31, #1114
+        1520    0x1c 0xb0 0x16 0x59                                                                                                                                                                                      MOV s2, r0
+        1524    0x1a 0x0c 0x28 0xf9                                                                                                                                                                                      VSHUFFLE x4, x5, x1, r24
+        1528    0x1b 0x0c 0x08 0x79                                                                                                                                                                                      VSHUFFLE x6, x1, x0, r24
+        1532    0x1a 0x8c 0xa8 0xf9                                                                                                                                                                                      VSHUFFLE x5, x5, x1, r25
+        1536    0x07 0x7a 0x14 0x88 0xc8 0x87 0xd7 0x99 0x00 0x1b                                                                                                                          AND r29, r29, r1;             VSHUFFLE x1, x1, x0, r25;               VMUL cm0, x6, x4, r26
+.noswbrkpt
+        1546    0x00 0x3a 0xc1 0x01 0x86 0x0c 0x78 0x43                                                                                                                                    MOVX crRnd, r29;              VSHUFFLE x6, x3, x1, r24
+.nohwbrkpt
+.noswbrkpt
+        1554    0x07 0xa4 0x20 0x0b 0x00 0x69 0xd8 0x19 0x40 0x1b                                                                                                                          MOVX crSat, r30;              MOV s0, #0;                             VMAC cm0, cm0, x6, x5, r27
+        1564    0x19 0x8c 0x98 0xf9                                                                                                                                                                                      VSHUFFLE x3, x3, x1, r25
+        1568    0x02 0xb0 0x0e 0x66 0xe0 0x05 0x00 0x23                                                                                                                                                                  ADD.NC s1, r0, #4;                      VMAC cm0, cm0, x1, x4, r28
+        1576    0x1a 0x0c 0x10 0xf9                                                                                                                                                                                      VSHUFFLE x4, x2, x1, r24
+        1580    0x00 0x8c 0x90 0xe6 0xf8 0x05 0x40 0x23                                                                                                                                                                  VSHUFFLE x1, x2, x1, r25;               VMAC cm0, cm0, x1, x5, r31
+        1588    0x18 0x0b 0x96 0x59                                                                                                                                                                                      MOV r0, r23
+        1592    0x00 0x01                                                                        NOPX
+        1594    0x00 0x01                                                                        NOPX
+        1596    0x00 0x01                                                                        NOPX
+        1598    0x0b 0xbe 0xc0 0x99                                                                                                                          VSRS.s32.s64 x7, cm0, s2
+        1602    0x0a 0xbc 0xc0 0x99                                                                                                                          VSRS.s32.s64 x5, cm0, s0
+        1606    0x00 0x01                                                                        NOPX
+        1608    0x00 0x01                                                                        NOPX
+        1610    0x1c 0x0c 0x38 0x79                                                                                                                                                                                      VSHUFFLE x8, x7, x0, r24
+        1614    0x1b 0x8c 0xb8 0x79                                                                                                                                                                                      VSHUFFLE x7, x7, x0, r25
+        1618    0xd7 0xa1 0x80 0x09                                                                                                                                                                                                                              VMUL cm0, x8, x6, r26
+        1622    0x00 0x01                                                                        NOPX
+        1624    0xd8 0x20 0xc0 0x09                                                                                                                                                                                                                              VMAC cm0, cm0, x8, x3, r27
+        1628    0x00 0x01                                                                        NOPX
+        1630    0xe0 0x1d 0x80 0x09                                                                                                                                                                                                                              VMAC cm0, cm0, x7, x6, r28
+        1634    0x00 0x01                                                                        NOPX
+        1636    0xf8 0x1c 0xc0 0x09                                                                                                                                                                                                                              VMAC cm0, cm0, x7, x3, r31
+        1640    0x00 0x01                                                                        NOPX
+        1642    0x00 0x01                                                                        NOPX
+        1644    0x00 0x01                                                                        NOPX
+        1646    0x00 0x01                                                                        NOPX
+        1648    0x09 0xbd 0xc0 0x99                                                                                                                          VSRS.s32.s64 x3, cm0, s1
+        1652    0x00 0x01                                                                        NOPX
+        1654    0x00 0x01                                                                        NOPX
+        1656    0x00 0x01                                                                        NOPX
+        1658    0x1b 0x0c 0x18 0x79                                                                                                                                                                                      VSHUFFLE x6, x3, x0, r24
+        1662    0x19 0x8c 0x98 0x79                                                                                                                                                                                      VSHUFFLE x3, x3, x0, r25
+        1666    0xd7 0x99 0x00 0x09                                                                                                                                                                                                                              VMUL cm0, x6, x4, r26
+        1670    0x00 0x01                                                                        NOPX
+        1672    0xd8 0x18 0x40 0x09                                                                                                                                                                                                                              VMAC cm0, cm0, x6, x1, r27
+        1676    0x00 0x01                                                                        NOPX
+        1678    0xe0 0x0d 0x00 0x09                                                                                                                                                                                                                              VMAC cm0, cm0, x3, x4, r28
+        1682    0x00 0x01                                                                        NOPX
+        1684    0xf8 0x0c 0x40 0x09                                                                                                                                                                                                                              VMAC cm0, cm0, x3, x1, r31
+        1688    0x00 0x01                                                                        NOPX
+        1690    0x00 0x01                                                                        NOPX
+        1692    0x00 0x01                                                                        NOPX
+        1694    0x00 0x01                                                                        NOPX
+        1696    0x08 0xbc 0xc0 0x99                                                                                                                          VSRS.s32.s64 x1, cm0, s0
+        1700    0x00 0x01                                                                        NOPX
+        1702    0x00 0x01                                                                        NOPX
+        1704    0x00 0x01                                                                        NOPX
+        1706    0x18 0x81 0x28 0xd9                                                                                                                                                                                      VSUB.32 x1, x5, x1
+        1710    0x00 0x00 0x00 0xc0 0x3e 0x44 0xa8 0x43                                                                                                                                    RET lr;                       VLT.s32 r23, x1, x2
+.delay_slot
+.swstall delay_slot
+        1718    0x00 0x01                                                                        NOPX
+.delay_slot
+        1720    0x15 0xee 0xbc 0x19                                                                                                                                                        EXTEND.u16 r23, r23
+.delay_slot
+        1724    0x18 0x72 0x10 0x59                                                                                                                                                                                      VSEL.32 x0, x2, x0, r23
+.delay_slot
+        1728    0x18 0x01 0x08 0x59                                                                                                                                                                                      VSUB.32 x0, x1, x0
+.delay_slot
+        1732    0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x02 0xe0 0x0b 0x20 0xf7                      NOPA;                         NOPB;                         NOPS;                                                       MOV r23, r0
+.label _Z14vector_barrettRN3aie6vectorIiLj16EEES2_S2_S2_i__end

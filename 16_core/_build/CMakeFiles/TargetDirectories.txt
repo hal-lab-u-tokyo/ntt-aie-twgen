@@ -1,0 +1,3 @@
+/home/projects/aie/tsuboi/mlir-aie/my_programming/Bigger_NTT/multi_core_8_copy/_build/CMakeFiles/myFirstProgram.dir
+/home/projects/aie/tsuboi/mlir-aie/my_programming/Bigger_NTT/multi_core_8_copy/_build/CMakeFiles/edit_cache.dir
+/home/projects/aie/tsuboi/mlir-aie/my_programming/Bigger_NTT/multi_core_8_copy/_build/CMakeFiles/rebuild_cache.dir

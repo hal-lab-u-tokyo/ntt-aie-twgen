@@ -44,7 +44,7 @@ def my_vector_scalar(opts):
     barret_u = (1<<(2 * barret_w)) // modulo_q
     
 
-    @device(AIEDevice.npu1_4col)
+    @device(AIEDevice.npu1)
     def device_body():
         all_ty = np.ndarray[(all_size,), np.dtype[np.int32]]
         cores_ty = np.ndarray[(cores_size,), np.dtype[np.int32]]

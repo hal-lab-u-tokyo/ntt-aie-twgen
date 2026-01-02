@@ -14,6 +14,7 @@
 #include <sstream>
 #include <bitset>
 
+#include "nttlib.h"
 #include "test_utils.h"
 #include "xrt/xrt_bo.h"
 
@@ -22,12 +23,8 @@
 using DATATYPE = std::int32_t; // Configure this to match your buffer data type
 #endif
 
-void change_binary(int32_t x, int32_t *ls);
-void NTT(int32_t *a, int32_t n, int32_t q, int32_t w, int32_t p);
-void bit_reverse(int32_t *ls, int32_t n, int32_t p);
-void FNTT(int32_t *a, int32_t n, int32_t q, int32_t w);
-void change_order(int32_t *a, int32_t N);
-void bit_reverse_new(int32_t *ls, int32_t n, int32_t m);
+// void bit_reverse(int32_t *ls, int32_t n, int32_t p);
+void bit_reverse_and_separate(int32_t *ls, int32_t n, int32_t m);
 void bit_reverse_new_modoshi(int32_t *ls, int32_t n, int32_t m);
 
 int32_t calc_mod(int32_t a, int32_t q);
@@ -39,7 +36,7 @@ const int32_t raw_num_log = 2;
 const int32_t raw_num = 1 << raw_num_log;
 const int32_t core_num_log = col_num_log + raw_num_log;
 const int32_t core_num = col_num * raw_num;
-const int32_t all_size_log = 16;
+const int32_t all_size_log = 9;
 const int32_t factor_single_size = all_size_log;
 const int32_t ntt_size_log = all_size_log;
 const int32_t all_size = 1 << all_size_log;
@@ -139,24 +136,15 @@ int main(int argc, const char *argv[])
   // Initialize buffer objects
   // ===================================
   int32_t *bufInA = bo_inA.map<int32_t *>();
+  int32_t *bufInA_reference = new int32_t[IN_SIZE];
   for (int32_t i = 0; i < IN_SIZE; i++)
   {
     bufInA[i] = i;
-  }
-  int32_t *bufInA_copy = new int32_t[IN_SIZE];
-  for (int i = 0; i < IN_SIZE; i++)
-  {
-    bufInA_copy[i] = bufInA[i];
-  }
-  int32_t *bufInA_FNTT = new int32_t[IN_SIZE];
-  for (int i = 0; i < IN_SIZE; i++)
-  {
-    bufInA_FNTT[i] = bufInA[i];
+    bufInA_reference[i] = i;
   }
 
-  // Bit reverse input data
-  bit_reverse(bufInA_FNTT, all_size_log, 1);
-  bit_reverse_new(bufInA, all_size_log, core_num_log);
+  bit_reverse_and_separate(bufInA, all_size_log, 1);
+  // bit_reverse(bufInA, all_size_log, 1);
 
   int32_t *bufInFactor = bo_in_factor.map<int32_t *>();
   for (int core = 0; core < core_num; core++)
@@ -234,13 +222,13 @@ int main(int argc, const char *argv[])
       }
 
       // Compute reference results
-      FNTT(bufInA_FNTT, all_size_log, modulo_q, w_ori);
+      // FNTT(bufInA_reference, all_size_log, modulo_q, w_ori);
 
       int32_t miss_cnt = 0;
       int32_t core_count_index = 0;
       int32_t tile_size = all_size / (col_num * raw_num);
 
-      bit_reverse_new_modoshi(bufOutE, all_size_log, core_num_log);
+      // bit_reverse_new_modoshi(bufOutE, all_size_log, core_num_log);
 
       // Output results to file
       std::ofstream outfile("output.txt", std::ios::trunc);
@@ -256,16 +244,17 @@ int main(int argc, const char *argv[])
           core_count_index += 1;
         }
 
-        int32_t test = bufOutE[i];
+        int32_t expected = bufInA_reference[i];
+        int32_t output = bufOutE[i];
         // int32_t correct_flag = 1;
 
-        if (test != bufInA[i])
+        if (output != expected)
         {
           miss_cnt += 1;
           // correct_flag = 0;
         }
-        // std::cout << "index : " << i << " , inputs " << bufInA[i] << " = " << std::bitset<all_size_log>(bufInA[i]) << ", out_put:" << test << "\n";
-        outfile << "index : " << i << " , inputs " << bufInA[i] << " = " << std::bitset<all_size_log>(bufInA[i]) << " , correct : " << bufInA_FNTT[i] << ", out_put:" << test << "\n";
+        outfile << "index : " << i << " , correct : " << expected << ", output:" << output << "\n";
+        std::cout << "index : " << i << " , correct : " << expected << ", output:" << output << "\n";
       }
       if (verbosity >= 1)
       {
@@ -315,10 +304,6 @@ int main(int argc, const char *argv[])
   // ===================================
   // Print timing results
   // ===================================
-
-  // TODO - Mac count to guide gflops
-  float macs = 0;
-
   std::cout << "====================\n";
   std::cout
       << "Avg NPU time: " << npu_time_total / n_iterations << " [us]"
@@ -328,136 +313,6 @@ int main(int argc, const char *argv[])
 
   std::cout
       << "Max NPU time: " << npu_time_max << " [us]" << std::endl;
-}
-
-void change_binary(int32_t x, int32_t *ls)
-{
-
-  for (int i = 0; i < 32; i++)
-  {
-    ls[31 - i] = (x >> i) & 1; // xのi番目のビットを取得
-  }
-}
-
-void NTT(int32_t *a, int32_t n, int32_t q, int32_t w, int32_t p)
-{
-  int temp = n / p;
-  for (int l = 0; l < p; l++)
-  {
-    std::vector<int32_t> ls(temp, 0);
-    for (int k = 0; k < temp; ++k)
-    {
-      for (int j = 0; j < temp; ++j)
-      {
-        int exp = (k * j) % temp;
-        int32_t w_pow = 1;
-
-        // w^expを計算する
-        for (int i = 0; i < exp; ++i)
-        {
-          // w_pow = (w_pow * w) % q;
-          int64_t w_temp = (w_pow * w);
-          w_pow = calc_mod(w_temp, q);
-        }
-
-        // ls[k] += (a[j+temp*l] * w_pow) % q;
-        int64_t aaa = a[j + temp * l] * w_pow;
-        ls[k] = calc_mod(ls[k] + aaa, q);
-      }
-    }
-    for (int i = 0; i < temp; ++i)
-    {
-      // a[i+temp*l] = ls[i] % q;
-      a[i + temp * l] = calc_mod(ls[i], q);
-    }
-  }
-}
-
-void bit_reverse(int32_t *ls, int32_t n, int32_t p)
-{
-  int N = 1 << n;
-  int temp = N / p;
-  int num_bits = std::log2(temp); // n のビット数を計算
-  for (int l = 0; l < p; l++)
-  {
-    int offset = temp * l;
-
-    for (int i = 0; i < temp; ++i)
-    {
-      int reversed_index = 0;
-      int temp = i;
-
-      // インデックスを反転
-      for (int j = 0; j < num_bits; ++j)
-      {
-        reversed_index = (reversed_index << 1) | (temp & 1);
-        temp >>= 1;
-      }
-      ls[offset + i] = reversed_index;
-    }
-  }
-}
-
-void FNTT(int32_t *a, int32_t n, int32_t q, int32_t w)
-{
-  int N = 1 << n;
-  std::vector<int32_t> w_ls(N + 1);
-  int32_t w_single = 1;
-  for (int i = 0; i <= N; ++i)
-  {
-    w_ls[i] = w_single;
-    // std::cout << "w(" << i << ") : " << w_single << "\n";
-    w_single = (w_single * w) % q;
-    if (w_single < 0)
-    {
-      w_single += q + 1;
-    }
-  }
-
-  N = 1 << n;
-  for (int stage = 1; stage < n + 1; stage++)
-  {
-    int32_t w_stage_cnt = 1 << (n - stage);
-    int32_t gap = 1 << (stage - 1);
-    int32_t BF_elements = 1 << stage;
-    for (int BF_set = 0; BF_set < (1 << (n - stage)); BF_set++)
-    {
-      int32_t w_temp = 0;
-      for (int index = 0; index < (1 << (stage - 1)); index++)
-      {
-        int32_t temp_1 = a[BF_set * BF_elements + index];
-        int32_t temp_2 = a[BF_set * BF_elements + index + gap];
-        int32_t temp_3 = (temp_2 * w_ls[w_temp]) % q;
-        if (temp_3 < 0)
-        {
-          temp_3 += q + 1;
-        }
-        a[BF_set * BF_elements + index] = (temp_1 + temp_3) % q;
-        if (a[BF_set * BF_elements + index] < 0)
-        {
-          a[BF_set * BF_elements + index] += q + 1;
-        }
-
-        a[BF_set * BF_elements + index + gap] = (temp_1 - temp_3) % q;
-        if (a[BF_set * BF_elements + index + gap] < 0)
-        {
-          a[BF_set * BF_elements + index + gap] += q + 1;
-        }
-        w_temp = ((w_stage_cnt + w_temp) % q);
-      }
-    }
-  }
-}
-
-void change_order(int32_t *a, int32_t N)
-{
-  int32_t quater = N >> 2;
-  for (int i = 0; i < quater; i++)
-  {
-    int32_t temp = a[quater + i];
-    a[quater + i] = a[quater + quater + i];
-    a[quater + quater + i] = temp;
-  }
 }
 
 int32_t calc_mod(int32_t a, int32_t q)
@@ -480,7 +335,12 @@ int32_t calc_mod_64(int64_t a, int32_t q)
   return a;
 }
 
-void bit_reverse_new(int32_t *ls, int32_t n, int32_t m)
+// Bitreverse and separate odd-even bits
+// Excmple:
+// input: [0, 1, 2, 3, 4, 5, 6, 7]
+// bit-reverse: [0, 4, 2, 6, 1, 5, 3, 7]
+// separate odd-even bits: [0, 2, 1, 3, 4, 6, 5, 7]
+void bit_reverse_and_separate(int32_t *ls, int32_t n, int32_t m)
 {
   int N = 1 << n;
   int M = 1 << m;

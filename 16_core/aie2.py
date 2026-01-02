@@ -26,8 +26,8 @@ def my_vector_scalar(opts):
 
     col_num_log = 2
     raw_num_log = 2
-    all_size_log = 16
-    calc_size_log = 4
+    all_size_log = 9
+    calc_size_log = 1
     modulo_q = 65537
 
     cores_num_log = col_num_log+raw_num_log
@@ -56,8 +56,9 @@ def my_vector_scalar(opts):
         flag_ty = np.ndarray[(1,), np.dtype[np.int32]]
 
         
-
-        #関数定義
+        # ===================
+        # External Function
+        # ===================
         NTT_stage_down = external_func(
             "NTT_stage_down",
             inputs = [cores_ty,cores_ty,factor_buff_ty,factor_FIFO_ty,np.int32,  np.int32,np.int32, np.int32, np.int32,np.int32],
@@ -67,8 +68,8 @@ def my_vector_scalar(opts):
             inputs = [cores_ty,cores_ty,factor_buff_ty,factor_FIFO_ty,np.int32, np.int32, np.int32,np.int32, np.int32, np.int32],
         )
 
-        store_func = external_func(
-            "store_func",
+        vector_copy = external_func(
+            "vector_copy",
             inputs = [cores_ty, cores_ty,np.int32],
             )
         NTT_stage_next_up_down = external_func(
@@ -76,13 +77,15 @@ def my_vector_scalar(opts):
             inputs = [cores_ty,cores_ty,cores_ty,cores_ty,factor_buff_ty,factor_FIFO_ty,np.int32,np.int32,np.int32, np.int32,np.int32,np.int32, np.int32,np.int32,np.int32],
         )
         swap = external_func(
-            "swap",
+            "vector_swap",
             inputs = [cores_ty,cores_ty,np.int32,np.int32],
         )
         
 
 
-        #tileの定義
+        # ===================
+        # Define Tiles
+        # ===================
         CT_tile_ls = []
         Mem_tile_ls = []
         Shim_tile_ls = []
@@ -94,7 +97,9 @@ def my_vector_scalar(opts):
                 CT_tile_ls[col].append(tile(col,raw+2))
 
         
-        #FIFO定義
+        # ===================
+        # Define FIFOs
+        # ===================
         Mem_CT_FIFO_ls = []
         Mem_CT_factor_FIFO_ls = []
         CT_Mem_FIFO_ls = []
@@ -116,8 +121,9 @@ def my_vector_scalar(opts):
             Mem_Shim_FIFO_ls.append(object_fifo(f"of_Mem_Shim_{col}_FIFO", Mem_tile_ls[col], Shim_tile_ls[col], 1, mem_ty))
         
         
-        # # Flag用
-        
+        # ===================
+        # Define Buffers and FIFOs for core communication
+        # ===================
         if (raw > 0):
             up_down_flag_fifo_ls = []
             for col in range(col_num):
@@ -189,7 +195,9 @@ def my_vector_scalar(opts):
             for raw in range(raw_num):
                 buff_ls[col].append( buffer(tile=CT_tile_ls[col][raw], datatype= cores_ty))
         
-        # FIFO_linkの設定
+        # ===================
+        # Link FIFOs
+        # ===================
         for col in range(col_num):
             object_fifo_link(Shim_Mem_FIFO_ls[col], [Mem_CT_FIFO_ls[col][raw] for raw in range(raw_num)],[],[raw*cores_size for raw in range(raw_num)])
             object_fifo_link( [CT_Mem_FIFO_ls[col][raw] for raw in range(raw_num)], Mem_Shim_FIFO_ls[col],[raw * cores_size for raw in range(raw_num)],[])
@@ -197,26 +205,31 @@ def my_vector_scalar(opts):
 
 
 
-        # if trace_size > 0:
-        #     packetflow(0, CT_tile_ls[0][0], WireBundle.Trace, 0, Shim_tile_ls[0], WireBundle.DMA, 1, keep_pkt_header=True) 
-# ===========================================================================================================
-# 内部の定義
-# ==========================================================================================================
+        # ===================
+        # Core Body
+        # ===================
         for col in range(col_num):
             for raw in range(raw_num):
                 @core(CT_tile_ls[col][raw], "func.o")
                 def core_body():
                     for _ in range_(sys.maxsize):
                         core_index = col * raw_num + raw
-                        get_vec = Mem_CT_FIFO_ls[col][raw].acquire(ObjectFifoPort.Consume, 1)
-                        factor_FIFO_buff = Mem_CT_factor_FIFO_ls[col].acquire(ObjectFifoPort.Consume, 1)
-                        factor_buff = factor_buff_ls[col][raw]
+
+
+
+                        
+                        # =====================================
+                        # Copy input to local memory of ComputeTile
+                        # =====================================
+                        in_vec = Mem_CT_FIFO_ls[col][raw].acquire(ObjectFifoPort.Consume, 1)
                         buff = buff_ls[col][raw]
                         times = 1<<(cores_size_log-calc_size_log)
-                        store_func(get_vec,buff,times)
+                        vector_copy(in_vec,buff,times)
                         Mem_CT_FIFO_ls[col][raw].release(ObjectFifoPort.Consume, 1)
-                        
-                        
+
+                        factor_FIFO_buff = Mem_CT_factor_FIFO_ls[col].acquire(ObjectFifoPort.Consume, 1)
+                        factor_buff = factor_buff_ls[col][raw]
+
                         # =====================================
                         # 内部計算
                         # =====================================
@@ -231,6 +244,21 @@ def my_vector_scalar(opts):
 
                             for stage in range(6,cores_size_log+1):
                                 NTT_stage_up(buff,buff,factor_buff,factor_FIFO_buff,stage,all_size_log,cores_size_log,modulo_q,barret_w,barret_u)
+
+
+                        # TODO: This is dummy output
+                        out_vec = CT_Mem_FIFO_ls[col][raw].acquire(ObjectFifoPort.Produce, 1)
+                        for i in range_(cores_size):
+                            out_vec[i] = buff[i]
+                        CT_Mem_FIFO_ls[col][raw].release(ObjectFifoPort.Produce, 1)
+
+                        # Cleanup
+                        Mem_CT_factor_FIFO_ls[col].release(ObjectFifoPort.Consume, 1)
+
+
+                        """
+                        
+                        
                         
                         
                         # =====================================
@@ -452,8 +480,9 @@ def my_vector_scalar(opts):
                         out_put_vec = CT_Mem_FIFO_ls[col][raw].acquire(ObjectFifoPort.Produce, 1)
                         times = 1<<(cores_size_log-calc_size_log)
 
-                        store_func(buff,out_put_vec,times)
+                        vector_copy(buff,out_put_vec,times)
                         CT_Mem_FIFO_ls[col][raw].release(ObjectFifoPort.Produce, 1)
+                        """
                         
 
 
@@ -461,13 +490,9 @@ def my_vector_scalar(opts):
 
 
 
-# =========================================================================
-# 最終設定
-# =========================================================================
-        # Set up a circuit-switched flow from core to shim for tracing information
-        # if enableTrace:
-        #     flow(CT_tile_ls[0][0], WireBundle.Trace, 0, Shim_tile_ls[0], WireBundle.DMA, 1)
-        # To/from AIE-array data movement
+        # ===================
+        # Runtime Sequence
+        # ===================
         @runtime_sequence(all_ty,factor_all_ty,all_ty)
         def sequence(in_put,in_put_factor,out_put):
             if enableTrace:

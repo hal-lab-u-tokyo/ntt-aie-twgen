@@ -42,7 +42,7 @@ find_package(Boost REQUIRED)
 add_executable(${currentTarget}
     # ${CMAKE_CURRENT_SOURCE_DIR}/../../../runtime_lib/test_lib/test_utils.cpp
     /home/projects/aie/tsuboi/mlir-aie/runtime_lib/test_lib/test_utils.cpp
-
+    nttlib.cpp
     test.cpp
 )
 

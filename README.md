@@ -1,0 +1,1 @@
+# Number Theoretic Transform (NTT) Acceleration on AMD AI Engine

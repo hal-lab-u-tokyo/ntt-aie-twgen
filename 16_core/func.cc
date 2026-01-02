@@ -113,7 +113,7 @@ extern "C"
   // ==================================
 
   // DIT NTT
-  void NTT_stage_down(int32_t *buff_in, int32_t *buff_out, int32_t *factor_buff, int32_t *factor_fifo_buff, int32_t stage, int32_t all_size_log, int32_t cores_size_log, int32_t modulo_q, int32_t barret_w, int32_t barret_u)
+  void NTT_stage_down(int32_t *buff_in, int32_t *buff_out, int32_t *factor_buff, int32_t *factor_fifo_buff, int32_t stage, int32_t all_size_log, int32_t size_per_core_log, int32_t modulo_q, int32_t barret_w, int32_t barret_u)
   {
     event0();
 
@@ -145,11 +145,11 @@ extern "C"
     int32_t w_stage_cnt = 1 << (all_size_log - (stage - 1));
     int32_t gap = 1 << ((stage - 1) - 1);
     int32_t BF_elements = 1 << (stage - 1);
-    int32_t core_half_size = 1 << (cores_size_log - 1);
+    int32_t core_half_size = 1 << (size_per_core_log - 1);
 
     if (stage == 1)
     {
-      for (int i = 0; i < (1 << (cores_size_log - 5)); i++)
+      for (int i = 0; i < (1 << (size_per_core_log - 5)); i++)
       {
         int32_t *BF_index_in_1 = buff_in + i * vec_prime;
         int32_t *BF_index_in_2 = buff_in + i * vec_prime + core_half_size;
@@ -168,7 +168,7 @@ extern "C"
 
     if (stage != 1)
     {
-      for (int i = 0; i < (1 << (cores_size_log - 6)); i++)
+      for (int i = 0; i < (1 << (size_per_core_log - 6)); i++)
       {
         int32_t *BF_index_in_1 = buff_in + i * vec_prime * 2;
         int32_t *BF_index_in_2 = buff_in + i * vec_prime * 2 + vec_prime;
@@ -199,7 +199,7 @@ extern "C"
         aie::store_v(BF_index_out_2, res2);
       }
 
-      for (int i = 0; i < (1 << (cores_size_log - 6)); i++)
+      for (int i = 0; i < (1 << (size_per_core_log - 6)); i++)
       {
         int32_t *BF_index_in_1 = buff_in + i * vec_prime * 2 + core_half_size;
         int32_t *BF_index_in_2 = buff_in + i * vec_prime * 2 + vec_prime + core_half_size;
@@ -233,7 +233,7 @@ extern "C"
   }
 
   // DIF NTT
-  void NTT_stage_up(int32_t *buff_in, int32_t *buff_out, int32_t *factor_buff, int32_t *factor_fifo_buff, int32_t stage, int32_t all_size_log, int32_t cores_size_log, int32_t modulo_q, int32_t barret_w, int32_t barret_u)
+  void NTT_stage_up(int32_t *buff_in, int32_t *buff_out, int32_t *factor_buff, int32_t *factor_fifo_buff, int32_t stage, int32_t all_size_log, int32_t size_per_core_log, int32_t modulo_q, int32_t barret_w, int32_t barret_u)
   {
     event0();
 
@@ -242,10 +242,10 @@ extern "C"
     aie::vector<int32_t, vec_prime> u_vector = aie::broadcast<int32_t, vec_prime>(barret_u);
     aie::vector<int32_t, vec_prime_half> u_vector_half = aie::broadcast<int32_t, vec_prime_half>(barret_u);
 
-    int32_t w_stage_cnt = 1 << (cores_size_log - (stage - 1));
+    int32_t w_stage_cnt = 1 << (size_per_core_log - (stage - 1));
     int32_t gap = 1 << ((stage - 1) - 1);
     int32_t BF_elements = 1 << (stage - 1);
-    int32_t cores_half_size = 1 << (cores_size_log - 1);
+    int32_t cores_half_size = 1 << (size_per_core_log - 1);
 
     aie::vector<int32_t, vec_prime> factor_vec_stage = aie::broadcast<int32_t, vec_prime>(factor_fifo_buff[all_size_log - stage]);
     // 前からやっていくと消す可能性あるけど後ろからやっていけば消えないのでは？？
@@ -295,7 +295,7 @@ extern "C"
     event1();
   }
 
-  void NTT_stage_next_up_down(int32_t *buff_in_1, int32_t *buff_in_2, int32_t *buff_out_1, int32_t *buff_out_2, int32_t *factor_buff, int32_t *factor_fifo_buff, int32_t factor_scalar, int32_t half_bool, int32_t stage, int32_t all_size_log, int32_t cores_size_log, int32_t times, int32_t modulo_q, int32_t barret_w, int32_t barret_u)
+  void NTT_stage_next_up_down(int32_t *buff_in_1, int32_t *buff_in_2, int32_t *buff_out_1, int32_t *buff_out_2, int32_t *factor_buff, int32_t *factor_fifo_buff, int32_t factor_scalar, int32_t half_bool, int32_t stage, int32_t all_size_log, int32_t size_per_core_log, int32_t times, int32_t modulo_q, int32_t barret_w, int32_t barret_u)
   {
     // factor_scale : 基準のfactor_buffに "factor_scale倍して計算をしていく"
     // CT3()ComputeTile_2では
@@ -325,7 +325,7 @@ extern "C"
     factor_vec = vector_barrett(factor_scalar_vec, q_vector, factor_vec, u_vector, barret_w);
     aie::vector<int32_t, vec_prime> factor_vec_stage_2_full = aie::broadcast<int32_t, vec_prime>(factor_fifo_buff[all_size_log - stage + 4]);
 
-    int32_t half = half_bool * (1 << (cores_size_log - 1));
+    int32_t half = half_bool * (1 << (size_per_core_log - 1));
     // int32_t half = 0;
 
     for (int index = 0; index < times; index++)

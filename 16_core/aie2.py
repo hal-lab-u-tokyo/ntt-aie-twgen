@@ -26,20 +26,20 @@ def my_vector_scalar(opts):
 
     col_num_log = 2
     raw_num_log = 2
-    all_size_log = 9
-    calc_size_log = 1
+    all_size_log = 14
+    calc_size_log = 5
     modulo_q = 65537
 
     cores_num_log = col_num_log+raw_num_log
-    cores_size_log = all_size_log - cores_num_log
+    size_per_core_log = all_size_log - cores_num_log
 
     col_num = 1<<col_num_log
     raw_num = 1<<raw_num_log
     all_size = 1<<all_size_log
     factor_buff_size = 1<<calc_size_log
-    factor_FIFO_size = 1<<(cores_size_log-1)
+    factor_FIFO_size = 1<<(size_per_core_log-1)
     cores_num = 1<<cores_num_log
-    cores_size = 1<<cores_size_log
+    cores_size = 1<<size_per_core_log
     barret_w = 17
     barret_u = (1<<(2 * barret_w)) // modulo_q
     
@@ -223,7 +223,8 @@ def my_vector_scalar(opts):
                         # =====================================
                         in_vec = Mem_CT_FIFO_ls[col][raw].acquire(ObjectFifoPort.Consume, 1)
                         buff = buff_ls[col][raw]
-                        times = 1<<(cores_size_log-calc_size_log)
+                        # times = 1<<(size_per_core_log-calc_size_log)
+                        times = 1 << size_per_core_log
                         vector_copy(in_vec,buff,times)
                         Mem_CT_FIFO_ls[col][raw].release(ObjectFifoPort.Consume, 1)
 
@@ -234,16 +235,18 @@ def my_vector_scalar(opts):
                         # 内部計算
                         # =====================================
 
-                        if cores_size_log < 5:
-                            for stage in range(1,cores_size_log+1):
-                                NTT_stage_down(buff,buff,factor_buff,factor_FIFO_buff,stage,all_size_log,cores_size_log,modulo_q,barret_w,barret_u)
+                        NTT_stage_down(buff,buff,factor_buff,factor_FIFO_buff,1,all_size_log,size_per_core_log,modulo_q,barret_w,barret_u)
+                        
+                        # if size_per_core_log < 5:
+                        #     for stage in range(1,size_per_core_log+1):
+                        #         NTT_stage_down(buff,buff,factor_buff,factor_FIFO_buff,stage,all_size_log,size_per_core_log,modulo_q,barret_w,barret_u)
 
-                        else:
-                            for stage in range(1,6):
-                                NTT_stage_down(buff,buff,factor_buff,factor_FIFO_buff,stage,all_size_log,cores_size_log,modulo_q,barret_w,barret_u)
+                        # else:
+                        #     for stage in range(1,6):
+                        #         NTT_stage_down(buff,buff,factor_buff,factor_FIFO_buff,stage,all_size_log,size_per_core_log,modulo_q,barret_w,barret_u)
 
-                            for stage in range(6,cores_size_log+1):
-                                NTT_stage_up(buff,buff,factor_buff,factor_FIFO_buff,stage,all_size_log,cores_size_log,modulo_q,barret_w,barret_u)
+                        #     for stage in range(6,size_per_core_log+1):
+                        #         NTT_stage_up(buff,buff,factor_buff,factor_FIFO_buff,stage,all_size_log,size_per_core_log,modulo_q,barret_w,barret_u)
 
 
                         # TODO: This is dummy output
@@ -273,18 +276,18 @@ def my_vector_scalar(opts):
                             swap_fifo_flag_ls[col][raw].release(ObjectFifoPort.Produce, 1)
                         #====
 
-                        stage = cores_size_log+1
+                        stage = size_per_core_log+1
                         if raw % 2 == 0:
                             half_bool = 0
                             reached_tile = 1
                             factor_scalar = 1
-                            NTT_stage_next_up_down(buff_ls[col][raw],buff_ls[col][raw+reached_tile],buff_ls[col][raw],buff_ls[col][raw+reached_tile],factor_buff,factor_FIFO_buff, factor_scalar,half_bool,stage, all_size_log,cores_size_log,(1<< (cores_size_log-5)),modulo_q, barret_w, barret_u)
+                            NTT_stage_next_up_down(buff_ls[col][raw],buff_ls[col][raw+reached_tile],buff_ls[col][raw],buff_ls[col][raw+reached_tile],factor_buff,factor_FIFO_buff, factor_scalar,half_bool,stage, all_size_log,size_per_core_log,(1<< (size_per_core_log-5)),modulo_q, barret_w, barret_u)
                          
                         else:            
                             half_bool = 1
                             reached_tile = -1
-                            factor_scalar = factor_FIFO_buff[all_size_log-stage+cores_size_log-1]
-                            NTT_stage_next_up_down(buff_ls[col][raw+reached_tile],buff_ls[col][raw],buff_ls[col][raw+reached_tile],buff_ls[col][raw],factor_buff,factor_FIFO_buff, factor_scalar,half_bool,stage, all_size_log,cores_size_log,(1<< (cores_size_log-5)),modulo_q, barret_w, barret_u)                            
+                            factor_scalar = factor_FIFO_buff[all_size_log-stage+size_per_core_log-1]
+                            NTT_stage_next_up_down(buff_ls[col][raw+reached_tile],buff_ls[col][raw],buff_ls[col][raw+reached_tile],buff_ls[col][raw],factor_buff,factor_FIFO_buff, factor_scalar,half_bool,stage, all_size_log,size_per_core_log,(1<< (size_per_core_log-5)),modulo_q, barret_w, barret_u)                            
 
                         up_down_flag_fifo_ls[col][raw].release(ObjectFifoPort.Produce, 1)
                         up_down_flag_fifo_ls[col][raw+reached_tile].acquire(ObjectFifoPort.Consume, 1)
@@ -300,9 +303,9 @@ def my_vector_scalar(opts):
                             swap_fifo_flag_ls[col][raw].release(ObjectFifoPort.Produce, 1)
                             swap_fifo_flag_ls[destination // raw_num][destination % raw_num].acquire(ObjectFifoPort.Consume, 1)
                             if core_index > destination:
-                                swap(buff_ls[col][raw],buff_ls[destination // raw_num][destination % raw_num],0 , 1<<(cores_size_log-5))
+                                swap(buff_ls[col][raw],buff_ls[destination // raw_num][destination % raw_num],0 , 1<<(size_per_core_log-5))
                             if core_index < destination:
-                                swap(buff_ls[col][raw],buff_ls[destination // raw_num][destination % raw_num],1<<(cores_size_log-1), 1<<(cores_size_log-5))
+                                swap(buff_ls[col][raw],buff_ls[destination // raw_num][destination % raw_num],1<<(size_per_core_log-1), 1<<(size_per_core_log-5))
 
                             swap_fifo_flag_ls[destination // raw_num][destination % raw_num].acquire(ObjectFifoPort.Consume, 1)
                             swap_fifo_flag_ls[destination // raw_num][destination % raw_num].release(ObjectFifoPort.Consume, 1)
@@ -321,21 +324,21 @@ def my_vector_scalar(opts):
                             swap_fifo_flag_ls[col][raw].release(ObjectFifoPort.Produce, 1)
                         #====
                         
-                        stage = cores_size_log+2
+                        stage = size_per_core_log+2
                         
                         factor_scalar = 1
-                        for _ in range(core_index % (1 << (stage-cores_size_log))):
-                            factor_scalar = factor_scalar*factor_FIFO_buff[all_size_log-stage+cores_size_log-1] % modulo_q
+                        for _ in range(core_index % (1 << (stage-size_per_core_log))):
+                            factor_scalar = factor_scalar*factor_FIFO_buff[all_size_log-stage+size_per_core_log-1] % modulo_q
 
                         if raw % 2 == 0:
                             half_bool = 0
                             reached_tile = 1
-                            NTT_stage_next_up_down(buff_ls[col][raw],buff_ls[col][raw+reached_tile],buff_ls[col][raw],buff_ls[col][raw+reached_tile],factor_buff,factor_FIFO_buff, factor_scalar,half_bool,stage, all_size_log,cores_size_log,(1<< (cores_size_log-5)),modulo_q, barret_w, barret_u)
+                            NTT_stage_next_up_down(buff_ls[col][raw],buff_ls[col][raw+reached_tile],buff_ls[col][raw],buff_ls[col][raw+reached_tile],factor_buff,factor_FIFO_buff, factor_scalar,half_bool,stage, all_size_log,size_per_core_log,(1<< (size_per_core_log-5)),modulo_q, barret_w, barret_u)
                             
                         else:
                             half_bool = 1
                             reached_tile = -1
-                            NTT_stage_next_up_down(buff_ls[col][raw+reached_tile],buff_ls[col][raw],buff_ls[col][raw+reached_tile],buff_ls[col][raw],factor_buff,factor_FIFO_buff, factor_scalar,half_bool,stage, all_size_log,cores_size_log,(1<< (cores_size_log-5)),modulo_q, barret_w, barret_u)
+                            NTT_stage_next_up_down(buff_ls[col][raw+reached_tile],buff_ls[col][raw],buff_ls[col][raw+reached_tile],buff_ls[col][raw],factor_buff,factor_FIFO_buff, factor_scalar,half_bool,stage, all_size_log,size_per_core_log,(1<< (size_per_core_log-5)),modulo_q, barret_w, barret_u)
 
                         up_down_flag_fifo_ls[col][raw].release(ObjectFifoPort.Produce, 1)
                         up_down_flag_fifo_ls[col][raw+reached_tile].acquire(ObjectFifoPort.Consume, 1)
@@ -356,9 +359,9 @@ def my_vector_scalar(opts):
                             swap_fifo_flag_ls[col][raw].release(ObjectFifoPort.Produce, 1)
                             swap_fifo_flag_ls[destination // raw_num][destination % raw_num].acquire(ObjectFifoPort.Consume, 1)
                             if core_index > destination:
-                                swap(buff_ls[col][raw],buff_ls[destination // raw_num][destination % raw_num],0 , 1<<(cores_size_log-5))
+                                swap(buff_ls[col][raw],buff_ls[destination // raw_num][destination % raw_num],0 , 1<<(size_per_core_log-5))
                             if core_index < destination:
-                                swap(buff_ls[col][raw],buff_ls[destination // raw_num][destination % raw_num],1<<(cores_size_log-1), 1<<(cores_size_log-5))
+                                swap(buff_ls[col][raw],buff_ls[destination // raw_num][destination % raw_num],1<<(size_per_core_log-1), 1<<(size_per_core_log-5))
 
                             swap_fifo_flag_ls[destination // raw_num][destination % raw_num].acquire(ObjectFifoPort.Consume, 1)
                             swap_fifo_flag_ls[destination // raw_num][destination % raw_num].release(ObjectFifoPort.Consume, 1)
@@ -375,7 +378,7 @@ def my_vector_scalar(opts):
                             swap_2_fifo_flag_ls[col][raw].acquire(ObjectFifoPort.Produce, 1)
                         #====
                         
-                        stage = cores_size_log+3
+                        stage = size_per_core_log+3
                         reached_tile = 1
                         if col % 2 == 1:
                             factor_scaler_index = raw
@@ -385,9 +388,9 @@ def my_vector_scalar(opts):
                             reached_tile = -1
 
                             for _ in range(factor_scaler_index):
-                                factor_scalar = factor_scalar*factor_FIFO_buff[all_size_log-stage+cores_size_log] % modulo_q
+                                factor_scalar = factor_scalar*factor_FIFO_buff[all_size_log-stage+size_per_core_log] % modulo_q
 
-                            NTT_stage_next_up_down(buff_ls[col-1][raw],buff_ls[col][raw],buff_ls[col-1][raw],buff_ls[col][raw],factor_buff,factor_FIFO_buff, factor_scalar,half_bool,stage, all_size_log,cores_size_log,(1<< (cores_size_log-4)),modulo_q, barret_w, barret_u)                            
+                            NTT_stage_next_up_down(buff_ls[col-1][raw],buff_ls[col][raw],buff_ls[col-1][raw],buff_ls[col][raw],factor_buff,factor_FIFO_buff, factor_scalar,half_bool,stage, all_size_log,size_per_core_log,(1<< (size_per_core_log-4)),modulo_q, barret_w, barret_u)                            
 
                         right_left_flag_fifo_ls[col][raw].release(ObjectFifoPort.Produce, 1)
                         right_left_flag_fifo_ls[col+reached_tile][raw].acquire(ObjectFifoPort.Consume, 1)
@@ -408,9 +411,9 @@ def my_vector_scalar(opts):
                             swap_2_fifo_flag_ls[col][raw].release(ObjectFifoPort.Produce, 1)
                             swap_2_fifo_flag_ls[destination // raw_num][destination % raw_num].acquire(ObjectFifoPort.Consume, 1)
                             if core_index > destination:
-                                swap(buff_ls[col][raw],buff_ls[destination // raw_num][destination % raw_num],0 , 1<<(cores_size_log-4))
+                                swap(buff_ls[col][raw],buff_ls[destination // raw_num][destination % raw_num],0 , 1<<(size_per_core_log-4))
                             # if core_index < destination:
-                            #     swap(buff_ls[col][raw],buff_ls[destination // raw_num][destination % raw_num],1<<(cores_size_log-1), 1<<(cores_size_log-4))
+                            #     swap(buff_ls[col][raw],buff_ls[destination // raw_num][destination % raw_num],1<<(size_per_core_log-1), 1<<(size_per_core_log-4))
 
                             # swap_2_fifo_flag_ls[destination // raw_num][destination % raw_num].acquire(ObjectFifoPort.Consume, 1)
                             swap_2_fifo_flag_ls[destination // raw_num][destination % raw_num].release(ObjectFifoPort.Consume, 1)
@@ -431,7 +434,7 @@ def my_vector_scalar(opts):
                         #     swap_2_fifo_flag_ls[col][raw].acquire(ObjectFifoPort.Produce, 1)
                         #====
                         
-                        stage = cores_size_log+4
+                        stage = size_per_core_log+4
                         reached_tile = 1
                         if col % 2 == 1:
                             temp_index = 0
@@ -446,9 +449,9 @@ def my_vector_scalar(opts):
                             reached_tile = -1
 
                             for _ in range(factor_scaler_index):
-                                factor_scalar = factor_scalar*factor_FIFO_buff[all_size_log-stage+cores_size_log] % modulo_q
+                                factor_scalar = factor_scalar*factor_FIFO_buff[all_size_log-stage+size_per_core_log] % modulo_q
 
-                            NTT_stage_next_up_down(buff_ls[col-1][raw],buff_ls[col][raw],buff_ls[col-1][raw],buff_ls[col][raw],factor_buff,factor_FIFO_buff, factor_scalar,half_bool,stage, all_size_log,cores_size_log,(1<< (cores_size_log-4)),modulo_q, barret_w, barret_u)                            
+                            NTT_stage_next_up_down(buff_ls[col-1][raw],buff_ls[col][raw],buff_ls[col-1][raw],buff_ls[col][raw],factor_buff,factor_FIFO_buff, factor_scalar,half_bool,stage, all_size_log,size_per_core_log,(1<< (size_per_core_log-4)),modulo_q, barret_w, barret_u)                            
 
                         right_left_flag_fifo_ls[col][raw].release(ObjectFifoPort.Produce, 1)
                         right_left_flag_fifo_ls[col+reached_tile][raw].acquire(ObjectFifoPort.Consume, 1)
@@ -465,7 +468,7 @@ def my_vector_scalar(opts):
                         #     swap_2_fifo_flag_ls[col][raw].release(ObjectFifoPort.Produce, 1)
                         #     swap_2_fifo_flag_ls[destination // raw_num][destination % raw_num].acquire(ObjectFifoPort.Consume, 1)
                         #     if core_index > destination:
-                        #         swap(buff_ls[col][raw],buff_ls[destination // raw_num][destination % raw_num],0 , 1<<(cores_size_log-4))
+                        #         swap(buff_ls[col][raw],buff_ls[destination // raw_num][destination % raw_num],0 , 1<<(size_per_core_log-4))
                         #     swap_2_fifo_flag_ls[destination // raw_num][destination % raw_num].release(ObjectFifoPort.Consume, 1)
                         
                         #     swap_2_fifo_flag_ls[col][raw].acquire(ObjectFifoPort.Produce, 1)
@@ -478,7 +481,7 @@ def my_vector_scalar(opts):
                         # =====================================
                     
                         out_put_vec = CT_Mem_FIFO_ls[col][raw].acquire(ObjectFifoPort.Produce, 1)
-                        times = 1<<(cores_size_log-calc_size_log)
+                        times = 1<<(size_per_core_log-calc_size_log)
 
                         vector_copy(buff,out_put_vec,times)
                         CT_Mem_FIFO_ls[col][raw].release(ObjectFifoPort.Produce, 1)

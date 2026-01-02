@@ -50,6 +50,33 @@ void vector_bit_reverse(uint32_t *data, uint32_t logN)
     return;
 }
 
+// Bitreverse and separate odd-even bits
+// Excmple:
+// input: [0, 1, 2, 3, 4, 5, 6, 7]
+// bit-reverse: [0, 4, 2, 6, 1, 5, 3, 7]
+// separate odd-even bits: [0, 2, 1, 3, 4, 6, 5, 7]
+void vector_bit_reverse_and_separate(uint32_t *data, uint32_t logN, uint32_t logN_per_core)
+{
+    int N = 1 << logN;
+    int32_t single_size = 1 << logN_per_core;
+    int32_t *temp_ls = new int32_t[N];
+    for (int i = 0; i < N; i++)
+    {
+        temp_ls[i] = data[i];
+    }
+    for (int i = 0; i < N; ++i)
+    {
+        int reversed_index = bit_reverse(i, logN);
+        int32_t odd_even_bit = (reversed_index >> (0)) & 1;
+        int32_t idx_block = reversed_index / single_size;
+        int32_t idx_in_block = reversed_index % single_size;
+        int32_t new_index = ((idx_in_block - odd_even_bit) >> 1) + (odd_even_bit * (1 << (logN_per_core - 1))) + idx_block * single_size;
+        data[new_index] = temp_ls[i];
+    }
+
+    delete[] temp_ls;
+}
+
 uint32_t mod_mul(uint32_t a, uint32_t b, uint32_t mod)
 {
     return ((uint64_t)a * b) % mod;
@@ -57,7 +84,7 @@ uint32_t mod_mul(uint32_t a, uint32_t b, uint32_t mod)
 
 // NTT
 // data: bit-reversed input/output array
-void ntt_cpu(uint32_t *data, uint32_t logN, uint32_t W, uint32_t MOD, bool inverse)
+void ntt_cpu(uint32_t *data, uint32_t logN, uint32_t W, uint32_t MOD, bool inverse, uint32_t stop_stage_for_debug)
 {
     int N = 1 << logN;
     uint32_t current_W = W;
@@ -94,11 +121,16 @@ void ntt_cpu(uint32_t *data, uint32_t logN, uint32_t W, uint32_t MOD, bool inver
                 data[i] = (u + term) % MOD;
                 data[j] = (u - term + MOD) % MOD;
 
-                printf("butterfly: data[%u]=%u, data[%u]=%u, tw_idx=%d\n", i, data[i], j, data[j], wi_index);
+                // printf("butterfly: data[%u]=%u, data[%u]=%u, tw_idx=%d\n", i, data[i], j, data[j], wi_index);
 
                 wi = mod_mul(wi, ws, MOD);
                 wi_index += pow_step;
             }
+        }
+
+        if (stop_stage_for_debug == (s + 1))
+        {
+            return;
         }
     }
 

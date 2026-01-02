@@ -23,12 +23,15 @@
 using DATATYPE = std::int32_t; // Configure this to match your buffer data type
 #endif
 
-// void bit_reverse(int32_t *ls, int32_t n, int32_t p);
-void bit_reverse_and_separate(int32_t *ls, int32_t n, int32_t m);
-void bit_reverse_new_modoshi(int32_t *ls, int32_t n, int32_t m);
+void reverse_order_for_verify(uint32_t *data, int32_t logN, int32_t logN_per_core);
 
 int32_t calc_mod(int32_t a, int32_t q);
 int32_t calc_mod_64(int64_t a, int32_t q);
+
+// ===================================
+// Change here for different configurations
+const int32_t all_size_log = 14;
+// ===================================
 
 const int32_t col_num_log = 2;
 const int32_t col_num = 1 << col_num_log;
@@ -36,7 +39,6 @@ const int32_t raw_num_log = 2;
 const int32_t raw_num = 1 << raw_num_log;
 const int32_t core_num_log = col_num_log + raw_num_log;
 const int32_t core_num = col_num * raw_num;
-const int32_t all_size_log = 9;
 const int32_t factor_single_size = all_size_log;
 const int32_t ntt_size_log = all_size_log;
 const int32_t all_size = 1 << all_size_log;
@@ -44,12 +46,41 @@ const int32_t col_size = 1 << (all_size_log - col_num);
 const int32_t ntt_size = 1 << ntt_size_log;
 const int32_t ntt_num_log = all_size_log - ntt_size_log;
 const int32_t ntt_num = 1 << ntt_num_log;
+const int32_t size_per_core_log = all_size_log - core_num_log;
 
 const int32_t modulo_q = 65537;
 // const int32_t modulo_q =12289;
+// const int32_t modulo_q = 998244353;
 const int32_t r = 3;
 
 namespace po = boost::program_options;
+
+
+void initialize_a(uint32_t *a, int32_t size)
+{
+  for (int32_t i = 0; i < size; i++)
+  {
+    a[i] = i;
+  }
+}
+
+void initialize_twfactor(uint32_t *buff, int32_t size, int32_t w_ori)
+{
+  for (int core = 0; core < core_num; core++){
+    for (uint32_t i = 0; i < factor_single_size; i++){
+        uint32_t w_temp = 1;
+        uint32_t w_index = 1 << (i);
+        for (uint32_t j = 0; j < w_index; j++){
+          w_temp = (w_temp * w_ori) % modulo_q;
+          if (w_temp < 0)
+          {
+            w_temp += modulo_q + 1;
+          }
+        }
+        buff[i + factor_single_size * core] = w_temp;
+    }  
+  }
+}
 
 int main(int argc, const char *argv[])
 {
@@ -135,46 +166,15 @@ int main(int argc, const char *argv[])
   // ===================================
   // Initialize buffer objects
   // ===================================
-  int32_t *bufInA = bo_inA.map<int32_t *>();
-  int32_t *bufInA_reference = new int32_t[IN_SIZE];
-  for (int32_t i = 0; i < IN_SIZE; i++)
-  {
-    bufInA[i] = i;
-    bufInA_reference[i] = i;
-  }
-
-  bit_reverse_and_separate(bufInA, all_size_log, 1);
-  // bit_reverse(bufInA, all_size_log, 1);
-
-  int32_t *bufInFactor = bo_in_factor.map<int32_t *>();
-  for (int core = 0; core < core_num; core++)
-  {
-    for (int32_t i = 0; i < factor_single_size; i++)
-    {
-      int32_t w_temp = 1;
-      int32_t w_index = 1 << (i);
-      for (int j = 0; j < w_index; j++)
-      {
-        w_temp = (w_temp * w_ori) % modulo_q;
-        if (w_temp < 0)
-        {
-          w_temp += modulo_q + 1;
-        }
-      }
-      bufInFactor[i + factor_single_size * core] = w_temp;
-    }
-  }
-
-  // Zero out buffer bo_outC
-  DATATYPE *bufOutE = bo_outE.map<DATATYPE *>();
-  memset(bufOutE, 0, OUT_SIZE * sizeof(DATATYPE));
-
+  uint32_t *bufInA = bo_inA.map<uint32_t *>();
+  uint32_t *bufInA_reference = new uint32_t[IN_SIZE];
+  uint32_t *bufInFactor = bo_in_factor.map<uint32_t *>();
+  uint32_t *bufOutE = bo_outE.map<uint32_t *>();
+  
+  
   // sync host to device memories
   bo_instr.sync(XCL_BO_SYNC_BO_TO_DEVICE);
-  bo_inA.sync(XCL_BO_SYNC_BO_TO_DEVICE);
-  bo_in_factor.sync(XCL_BO_SYNC_BO_TO_DEVICE);
-  bo_outE.sync(XCL_BO_SYNC_BO_TO_DEVICE);
-
+  
   // ===================================
   // Main run loop
   // ===================================
@@ -185,12 +185,33 @@ int main(int argc, const char *argv[])
 
   int errors = 0;
 
+  // Compute reference results
+  initialize_a(bufInA_reference, IN_SIZE);
+  vector_bit_reverse(bufInA_reference, all_size_log);
+  ntt_cpu(bufInA_reference, all_size_log, w_ori, modulo_q, false, 1);
+
   for (unsigned iter = 0; iter < num_iter; iter++)
   {
 
     // ===================================
+    // Prepare input data for each iteration
+    // ===================================
+    initialize_a(bufInA, IN_SIZE);
+    vector_bit_reverse_and_separate(bufInA, all_size_log, size_per_core_log);
+
+    initialize_twfactor(bufInFactor, IN_FACTOR_SIZE, w_ori);
+
+    memset(bufOutE, 0, OUT_SIZE * sizeof(uint32_t));
+
+    bo_inA.sync(XCL_BO_SYNC_BO_TO_DEVICE);
+    bo_in_factor.sync(XCL_BO_SYNC_BO_TO_DEVICE);
+    bo_outE.sync(XCL_BO_SYNC_BO_TO_DEVICE);
+
+
+    // ===================================
     // Run kernel
     // ===================================
+    std::cout << "====================\n";
     if (verbosity >= 1)
     {
       std::cout << "Running Kernel.\n";
@@ -207,7 +228,6 @@ int main(int argc, const char *argv[])
 
     if (iter < n_warmup_iterations)
     {
-      /* Warmup iterations do not count towards average runtime. */
       continue;
     }
 
@@ -221,14 +241,13 @@ int main(int argc, const char *argv[])
         std::cout << "Verifying results ..." << std::endl;
       }
 
-      // Compute reference results
-      // FNTT(bufInA_reference, all_size_log, modulo_q, w_ori);
+      
 
       int32_t miss_cnt = 0;
       int32_t core_count_index = 0;
       int32_t tile_size = all_size / (col_num * raw_num);
 
-      // bit_reverse_new_modoshi(bufOutE, all_size_log, core_num_log);
+      reverse_order_for_verify(bufOutE, all_size_log, size_per_core_log);
 
       // Output results to file
       std::ofstream outfile("output.txt", std::ios::trunc);
@@ -252,18 +271,11 @@ int main(int argc, const char *argv[])
         {
           miss_cnt += 1;
           // correct_flag = 0;
+          // std::cout << "index : " << i << " , correct : " << expected << ", output:" << output << "\n";
         }
         outfile << "index : " << i << " , correct : " << expected << ", output:" << output << "\n";
-        std::cout << "index : " << i << " , correct : " << expected << ", output:" << output << "\n";
       }
-      if (verbosity >= 1)
-      {
-        for (int i = 0; i < factor_single_size; i++)
-        {
-          std::cout << "w_ori(" << i << ") , : " << bufInFactor[i] << "\n";
-        }
-      }
-      std::cout << "====================\n";
+      
       if (miss_cnt == 0)
       {
         std::cout << "PASSED: All results match reference.\n";
@@ -335,67 +347,26 @@ int32_t calc_mod_64(int64_t a, int32_t q)
   return a;
 }
 
-// Bitreverse and separate odd-even bits
-// Excmple:
-// input: [0, 1, 2, 3, 4, 5, 6, 7]
-// bit-reverse: [0, 4, 2, 6, 1, 5, 3, 7]
-// separate odd-even bits: [0, 2, 1, 3, 4, 6, 5, 7]
-void bit_reverse_and_separate(int32_t *ls, int32_t n, int32_t m)
+void reverse_order_for_verify(uint32_t *data, int32_t logN, int32_t logN_per_core)
 {
-  int N = 1 << n;
-  int M = 1 << m;
-  int32_t single_size = 1 << (n - m);
-  int32_t *temp_ls = new int32_t[N];
+  int N = 1 << logN;
+  int single_size = 1 << logN_per_core;
+  uint32_t *temp_ls = new uint32_t[N];
   for (int i = 0; i < N; i++)
   {
-    temp_ls[i] = ls[i];
+    temp_ls[i] = data[i];
   }
+
+  // Reverse order from AIE to CPU
+  // CPU: [0, 1, 2, 3, 4, 5, 6, 7]
+  // AIE: [0, 2, 4, 6, 1, 3, 5, 7]
   for (int i = 0; i < N; ++i)
   {
-    int reversed_index = 0;
-    int temp = i;
-    // インデックスを反転
-    for (int j = 0; j < n; ++j)
-    {
-      reversed_index = (reversed_index << 1) | (temp & 1);
-      temp >>= 1;
-    }
-    int32_t odd_even_bit = (reversed_index >> (0)) & 1;
-    int32_t aaa = reversed_index / single_size;
-    int32_t bbb = reversed_index - aaa * single_size;
-    int32_t new_index = ((bbb - odd_even_bit) >> 1) + (odd_even_bit * (1 << (n - m - 1))) + aaa * single_size;
-    ls[new_index] = temp_ls[i];
-  }
-
-  delete[] temp_ls;
-}
-
-void bit_reverse_new_modoshi(int32_t *ls, int32_t n, int32_t m)
-{
-  int N = 1 << n;
-  int M = 1 << m;
-  int single_size = 1 << (n - m);
-  int32_t *temp_ls = new int32_t[N];
-  for (int i = 0; i < N; i++)
-  {
-    temp_ls[i] = ls[i];
-  }
-
-  for (int i = 0; i < N; ++i)
-  {
-    int32_t bbb = i % single_size;
-    int32_t aaa = i / single_size;
-    int32_t top_bit = (bbb >> (n - m - 1)) & 1;
-    int32_t new_index;
-    if (top_bit == 0)
-    {
-      new_index = (bbb << 1) + aaa * single_size;
-    }
-    else
-    {
-      new_index = ((bbb - (1 << (n - m - 1))) << 1) + 1 + aaa * single_size;
-    }
-    ls[new_index] = temp_ls[i];
+    int32_t idx_in_block = i % single_size;
+    int32_t idx_block = i / single_size;
+    int32_t odd_even_bit = idx_in_block & 1;
+    int32_t idx_aie = ((idx_in_block - odd_even_bit) >> 1) + (odd_even_bit * (single_size / 2)) + (idx_block * single_size);
+    data[i] = temp_ls[idx_aie];
   }
   delete[] temp_ls;
 }

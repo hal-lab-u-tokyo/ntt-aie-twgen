@@ -18,12 +18,7 @@
 #include "test_utils.h"
 #include "xrt/xrt_bo.h"
 
-#ifndef DATATYPES_USING_DEFINED
-#define DATATYPES_USING_DEFINED
-using DATATYPE = std::int32_t; // Configure this to match your buffer data type
-#endif
-
-void reverse_order_for_verify(uint32_t *data, int32_t logN, int32_t logN_per_core);
+void reverse_order_for_verify(int *data, int32_t logN, int32_t logN_per_core);
 
 int32_t calc_mod(int32_t a, int32_t q);
 int32_t calc_mod_64(int64_t a, int32_t q);
@@ -50,7 +45,7 @@ const int32_t size_per_core_log = all_size_log - core_num_log;
 namespace po = boost::program_options;
 
 
-void initialize_a(uint32_t *a, int32_t size)
+void initialize_a(int *a, int32_t size)
 {
   for (int32_t i = 0; i < size; i++)
   {
@@ -58,13 +53,13 @@ void initialize_a(uint32_t *a, int32_t size)
   }
 }
 
-void initialize_twfactor(uint32_t *buff, int32_t size, int32_t w_ori)
+void initialize_twfactor(int *buff, int32_t size, int32_t w_ori)
 {
   for (int core = 0; core < core_num; core++){
-    for (uint32_t i = 0; i < factor_single_size; i++){
-        uint32_t w_temp = 1;
-        uint32_t w_index = 1 << (i);
-        for (uint32_t j = 0; j < w_index; j++){
+    for (int i = 0; i < factor_single_size; i++){
+        int w_temp = 1;
+        int w_index = 1 << (i);
+        for (int j = 0; j < w_index; j++){
           w_temp = (w_temp * w_ori) % modulo_q;
           if (w_temp < 0)
           {
@@ -113,7 +108,7 @@ int main(int argc, const char *argv[])
   constexpr int IN_FACTOR_SIZE = (factor_single_size)*core_num;
   std::cout << "IN_SIZE_factor : " << IN_FACTOR_SIZE << "\n";
   constexpr int OUT_SIZE = IN_SIZE;
-  int OUT_SIZE_bit = IN_SIZE * sizeof(DATATYPE) + trace_size;
+  int OUT_SIZE_bit = IN_SIZE * sizeof(int) + trace_size;
 
   // ===================================
   // Load instruction sequence
@@ -139,10 +134,10 @@ int main(int argc, const char *argv[])
   // ===================================
   auto bo_instr = xrt::bo(device, instr_v.size() * sizeof(int),
                           XCL_BO_FLAGS_CACHEABLE, kernel.group_id(1));
-  auto bo_inA = xrt::bo(device, IN_SIZE * sizeof(DATATYPE),
+  auto bo_inA = xrt::bo(device, IN_SIZE * sizeof(int),
                         XRT_BO_FLAGS_HOST_ONLY, kernel.group_id(3));
 
-  auto bo_in_factor = xrt::bo(device, IN_FACTOR_SIZE * sizeof(DATATYPE),
+  auto bo_in_factor = xrt::bo(device, IN_FACTOR_SIZE * sizeof(int),
                               XRT_BO_FLAGS_HOST_ONLY, kernel.group_id(4));
 
   auto bo_outE = xrt::bo(device, OUT_SIZE_bit,
@@ -160,10 +155,10 @@ int main(int argc, const char *argv[])
   // ===================================
   // Initialize buffer objects
   // ===================================
-  uint32_t *bufInA = bo_inA.map<uint32_t *>();
-  uint32_t *bufInA_reference = new uint32_t[IN_SIZE];
-  uint32_t *bufInFactor = bo_in_factor.map<uint32_t *>();
-  uint32_t *bufOutE = bo_outE.map<uint32_t *>();
+  int *bufInA = bo_inA.map<int *>();
+  int *bufInA_reference = new int[IN_SIZE];
+  int *bufInFactor = bo_in_factor.map<int *>();
+  int *bufOutE = bo_outE.map<int *>();
   
   
   // sync host to device memories
@@ -193,7 +188,7 @@ int main(int argc, const char *argv[])
 
     initialize_twfactor(bufInFactor, IN_FACTOR_SIZE, w_ori);
 
-    memset(bufOutE, 0, OUT_SIZE * sizeof(uint32_t));
+    memset(bufOutE, 0, OUT_SIZE * sizeof(int));
 
     bo_inA.sync(XCL_BO_SYNC_BO_TO_DEVICE);
     bo_in_factor.sync(XCL_BO_SYNC_BO_TO_DEVICE);
@@ -338,11 +333,11 @@ int32_t calc_mod_64(int64_t a, int32_t q)
   return a;
 }
 
-void reverse_order_for_verify(uint32_t *data, int32_t logN, int32_t logN_per_core)
+void reverse_order_for_verify(int *data, int32_t logN, int32_t logN_per_core)
 {
   int N = 1 << logN;
   int single_size = 1 << logN_per_core;
-  uint32_t *temp_ls = new uint32_t[N];
+  int *temp_ls = new int[N];
   for (int i = 0; i < N; i++)
   {
     temp_ls[i] = data[i];

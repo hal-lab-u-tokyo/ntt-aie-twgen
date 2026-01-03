@@ -1,8 +1,8 @@
 #pragma once
 
-void ntt_cpu(uint32_t *data, uint32_t logN, uint32_t W, uint32_t MOD, bool inverse, uint32_t stop_stage_for_debug = -1);
-uint32_t power(uint32_t base, uint32_t exp, uint32_t mod);
+void ntt_cpu(int *data, int logN, int W, int MOD, bool inverse, int stop_stage_for_debug = -1);
+int power(int base, int exp, int mod);
 
-uint32_t bit_reverse(uint32_t x, int logN);
-void vector_bit_reverse(uint32_t *data, uint32_t logN);
-void vector_bit_reverse_and_separate(uint32_t *data, uint32_t logN, uint32_t logN_per_core);
+int bit_reverse(int x, int logN);
+void vector_bit_reverse(int *data, int logN);
+void vector_bit_reverse_and_separate(int *data, int logN, int logN_per_core);

@@ -9,7 +9,7 @@
 
 using namespace std;
 
-bool are_vectors_equal(const vector<uint32_t> &a, const vector<uint32_t> &b)
+bool are_vectors_equal(const vector<int> &a, const vector<int> &b)
 {
     int err = 0;
     for (size_t i = 0; i < a.size(); i++)
@@ -27,8 +27,8 @@ bool are_vectors_equal(const vector<uint32_t> &a, const vector<uint32_t> &b)
 int main()
 {
     // Set up parameters
-    const uint32_t MOD = 998244353; // : 119*2^23+1
-    const uint32_t W_ROOT = 31;
+    const int MOD = 998244353; // : 119*2^23+1
+    const int W_ROOT = 31;
     const int M = 23;
 
     const int logN = 3;
@@ -37,11 +37,11 @@ int main()
     // Random number generator
     random_device rd;
     mt19937 gen(rd());
-    uniform_int_distribution<uint32_t> distrib(0, (1LL << 10) - 1);
+    uniform_int_distribution<int> distrib(0, (1LL << 10) - 1);
 
     // Initialize input data
-    vector<uint32_t> a(N);
-    vector<uint32_t> a_ref(N);
+    vector<int> a(N);
+    vector<int> a_ref(N);
     for (int i = 0; i < N; ++i)
     {
         a[i] = distrib(gen) % MOD;
@@ -49,7 +49,7 @@ int main()
     }
 
     // Compute w = W^(2^(M-m)) mod MOD
-    uint32_t w = power(W_ROOT, 1LL << (M - logN), MOD);
+    int w = power(W_ROOT, 1LL << (M - logN), MOD);
 
     // Perform NTT
     vector_bit_reverse(a.data(), logN);

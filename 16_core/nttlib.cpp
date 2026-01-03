@@ -3,9 +3,9 @@
 #include <cstdio>
 #include <algorithm>
 
-uint32_t power(uint32_t base, uint32_t exp, uint32_t mod)
+int power(int base, int exp, int mod)
 {
-    uint32_t res = 1;
+    int res = 1;
     base %= mod;
     while (exp > 0)
     {
@@ -17,14 +17,14 @@ uint32_t power(uint32_t base, uint32_t exp, uint32_t mod)
     return res;
 }
 
-uint32_t modInverse(uint32_t n, uint32_t mod)
+int modInverse(int n, int mod)
 {
     return power(n, mod - 2, mod);
 }
 
-uint32_t bit_reverse(uint32_t x, int logN)
+int bit_reverse(int x, int logN)
 {
-    uint32_t res = 0;
+    int res = 0;
     for (int i = 0; i < logN; ++i)
     {
         res <<= 1;
@@ -34,11 +34,11 @@ uint32_t bit_reverse(uint32_t x, int logN)
     return res;
 }
 
-void vector_bit_reverse(uint32_t *data, uint32_t logN)
+void vector_bit_reverse(int *data, int logN)
 {
-    const uint32_t N = 1 << logN;
-    uint32_t *buff = new uint32_t[N];
-    for (uint32_t i = 0; i < N; ++i)
+    const int N = 1 << logN;
+    int *buff = new int[N];
+    for (int i = 0; i < N; ++i)
     {
         buff[i] = data[i];
     }
@@ -55,7 +55,7 @@ void vector_bit_reverse(uint32_t *data, uint32_t logN)
 // input: [0, 1, 2, 3, 4, 5, 6, 7]
 // bit-reverse: [0, 4, 2, 6, 1, 5, 3, 7]
 // separate odd-even bits: [0, 2, 1, 3, 4, 6, 5, 7]
-void vector_bit_reverse_and_separate(uint32_t *data, uint32_t logN, uint32_t logN_per_core)
+void vector_bit_reverse_and_separate(int *data, int logN, int logN_per_core)
 {
     int N = 1 << logN;
     int32_t single_size = 1 << logN_per_core;
@@ -77,27 +77,27 @@ void vector_bit_reverse_and_separate(uint32_t *data, uint32_t logN, uint32_t log
     delete[] temp_ls;
 }
 
-uint32_t mod_mul(uint32_t a, uint32_t b, uint32_t mod)
+int mod_mul(int a, int b, int mod)
 {
     return ((uint64_t)a * b) % mod;
 }
 
 // NTT
 // data: bit-reversed input/output array
-void ntt_cpu(uint32_t *data, uint32_t logN, uint32_t W, uint32_t MOD, bool inverse, uint32_t stop_stage_for_debug)
+void ntt_cpu(int *data, int logN, int W, int MOD, bool inverse, int stop_stage_for_debug)
 {
     int N = 1 << logN;
-    uint32_t current_W = W;
+    int current_W = W;
     if (inverse)
     {
         current_W = modInverse(W, MOD);
     }
 
-    uint32_t pow_step = 1LL << logN;
-    uint32_t idx_step = 1LL;
+    int pow_step = 1LL << logN;
+    int idx_step = 1LL;
 
-    uint32_t ws, half, wi, u, v, term;
-    for (uint32_t s = 0; s < logN; ++s)
+    int ws, half, wi, u, v, term;
+    for (int s = 0; s < logN; ++s)
     {
         pow_step >>= 1;
         ws = power(current_W, pow_step, MOD);
@@ -105,13 +105,13 @@ void ntt_cpu(uint32_t *data, uint32_t logN, uint32_t W, uint32_t MOD, bool inver
         half = idx_step;
         idx_step <<= 1;
 
-        for (uint32_t p = 0; p < N; p += idx_step)
+        for (int p = 0; p < N; p += idx_step)
         {
             wi = 1;
             int wi_index = 0;
-            for (uint32_t i = p; i < p + half; ++i)
+            for (int i = p; i < p + half; ++i)
             {
-                uint32_t j = i + half;
+                int j = i + half;
 
                 u = data[i];
                 v = data[j];
@@ -136,8 +136,8 @@ void ntt_cpu(uint32_t *data, uint32_t logN, uint32_t W, uint32_t MOD, bool inver
 
     if (inverse)
     {
-        uint32_t inv_n = modInverse(N, MOD);
-        for (uint32_t i = 0; i < N; ++i)
+        int inv_n = modInverse(N, MOD);
+        for (int i = 0; i < N; ++i)
         {
             data[i] = mod_mul(data[i], inv_n, MOD);
         }

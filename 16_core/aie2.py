@@ -42,7 +42,7 @@ def my_vector_scalar(opts):
     all_size = 1<<all_size_log
     factor_buff_size = 1<<size_per_vec_log
     # factor_FIFO_size = 1<<(size_per_core_log-1)
-    factor_FIFO_size = 16
+    factor_FIFO_size = all_size_log
     cores_num = 1<<cores_num_log
     cores_size = 1<<size_per_core_log
     barret_w = 17

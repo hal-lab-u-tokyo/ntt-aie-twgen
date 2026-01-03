@@ -67,7 +67,7 @@ void initialize_twfactor(int *buff, int32_t size, int32_t w_ori)
           }
         }
         buff[i + factor_single_size * core] = w_temp;
-    }  
+    }
   }
 }
 

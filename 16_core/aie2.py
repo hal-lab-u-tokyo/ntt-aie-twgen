@@ -27,6 +27,7 @@ def my_vector_scalar(opts):
     # Change here for different configurations
     all_size_log = 16
     modulo_q = 65537
+    n_stage_for_debug = 5
     # ===================================
     
 
@@ -239,20 +240,8 @@ def my_vector_scalar(opts):
                         # 内部計算
                         # =====================================
 
-                        for stage in range(1, 3):
+                        for stage in range(1, n_stage_for_debug + 1):
                             NTT_stage_down(buff,buff,factor_buff,factor_FIFO_buff,stage,all_size_log,size_per_core_log,modulo_q,barret_w,barret_u)
-
-                        # if size_per_core_log < 5:
-                        #     for stage in range(1,size_per_core_log+1):
-                        #         NTT_stage_down(buff,buff,factor_buff,factor_FIFO_buff,stage,all_size_log,size_per_core_log,modulo_q,barret_w,barret_u)
-
-                        # else:
-                        #     for stage in range(1,6):
-                        #         NTT_stage_down(buff,buff,factor_buff,factor_FIFO_buff,stage,all_size_log,size_per_core_log,modulo_q,barret_w,barret_u)
-
-                        #     for stage in range(6,size_per_core_log+1):
-                        #         NTT_stage_up(buff,buff,factor_buff,factor_FIFO_buff,stage,all_size_log,size_per_core_log,modulo_q,barret_w,barret_u)
-
 
                         # TODO: This is dummy output
                         out_vec = CT_Mem_FIFO_ls[col][raw].acquire(ObjectFifoPort.Produce, 1)

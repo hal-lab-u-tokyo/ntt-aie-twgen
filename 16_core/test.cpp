@@ -28,6 +28,7 @@ int32_t calc_mod_64(int64_t a, int32_t q);
 const int32_t all_size_log = 16;
 const int32_t modulo_q = 65537;
 const int32_t r = 3;
+const int n_stage_for_debug = 5;
 // ===================================
 
 const int32_t col_num_log = 2;
@@ -176,7 +177,7 @@ int main(int argc, const char *argv[])
   // Compute reference results
   initialize_a(bufInA_reference, IN_SIZE);
   vector_bit_reverse(bufInA_reference, all_size_log);
-  ntt_cpu(bufInA_reference, all_size_log, w_ori, modulo_q, false, 2);
+  ntt_cpu(bufInA_reference, all_size_log, w_ori, modulo_q, false, n_stage_for_debug);
 
   for (unsigned iter = 0; iter < n_iterations; iter++)
   {

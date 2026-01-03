@@ -30,7 +30,9 @@ int32_t calc_mod_64(int64_t a, int32_t q);
 
 // ===================================
 // Change here for different configurations
-const int32_t all_size_log = 14;
+const int32_t all_size_log = 16;
+const int32_t modulo_q = 65537;
+const int32_t r = 3;
 // ===================================
 
 const int32_t col_num_log = 2;
@@ -42,16 +44,8 @@ const int32_t core_num = col_num * raw_num;
 const int32_t factor_single_size = all_size_log;
 const int32_t ntt_size_log = all_size_log;
 const int32_t all_size = 1 << all_size_log;
-const int32_t col_size = 1 << (all_size_log - col_num);
 const int32_t ntt_size = 1 << ntt_size_log;
-const int32_t ntt_num_log = all_size_log - ntt_size_log;
-const int32_t ntt_num = 1 << ntt_num_log;
 const int32_t size_per_core_log = all_size_log - core_num_log;
-
-const int32_t modulo_q = 65537;
-// const int32_t modulo_q =12289;
-// const int32_t modulo_q = 998244353;
-const int32_t r = 3;
 
 namespace po = boost::program_options;
 
@@ -178,10 +172,8 @@ int main(int argc, const char *argv[])
   // ===================================
   // Main run loop
   // ===================================
-  unsigned num_iter = n_iterations + n_warmup_iterations;
   float npu_time_total = 0;
-  float npu_time_min = 9999999;
-  float npu_time_max = 0;
+  float npu_time_first = 0;
 
   int errors = 0;
 
@@ -190,7 +182,7 @@ int main(int argc, const char *argv[])
   vector_bit_reverse(bufInA_reference, all_size_log);
   ntt_cpu(bufInA_reference, all_size_log, w_ori, modulo_q, false, 1);
 
-  for (unsigned iter = 0; iter < num_iter; iter++)
+  for (unsigned iter = 0; iter < n_iterations; iter++)
   {
 
     // ===================================
@@ -240,8 +232,6 @@ int main(int argc, const char *argv[])
       {
         std::cout << "Verifying results ..." << std::endl;
       }
-
-      
 
       int32_t miss_cnt = 0;
       int32_t core_count_index = 0;
@@ -307,24 +297,25 @@ int main(int argc, const char *argv[])
     float npu_time =
         std::chrono::duration_cast<std::chrono::microseconds>(stop - start)
             .count();
-
-    npu_time_total += npu_time;
-    npu_time_min = (npu_time < npu_time_min) ? npu_time : npu_time_min;
-    npu_time_max = (npu_time > npu_time_max) ? npu_time : npu_time_max;
+    
+    if (iter == 0){
+      npu_time_first = npu_time;
+    }else {
+      npu_time_total += npu_time;
+    }
   }
 
   // ===================================
   // Print timing results
   // ===================================
   std::cout << "====================\n";
-  std::cout
-      << "Avg NPU time: " << npu_time_total / n_iterations << " [us]"
-      << std::endl;
-  std::cout
-      << "Min NPU time: " << npu_time_min << " [us]" << std::endl;
+  std::cout << "First NPU time: " << npu_time_first << " [us]" << std::endl;
 
-  std::cout
-      << "Max NPU time: " << npu_time_max << " [us]" << std::endl;
+  if (n_iterations > 1) {
+    std::cout << "Average NPU time over " << n_iterations - 1
+              << " iterations: "
+              << npu_time_total / (n_iterations - 1) << " [us]" << std::endl;
+  } 
 }
 
 int32_t calc_mod(int32_t a, int32_t q)

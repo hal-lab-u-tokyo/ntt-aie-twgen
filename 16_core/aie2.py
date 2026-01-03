@@ -23,12 +23,16 @@ def my_vector_scalar(opts):
     enableTrace = False
     trace_size = opts.trace_size
 
+    # ===================================
+    # Change here for different configurations
+    all_size_log = 16
+    modulo_q = 65537
+    # ===================================
+    
 
     col_num_log = 2
     raw_num_log = 2
-    all_size_log = 14
-    calc_size_log = 5
-    modulo_q = 65537
+    size_per_vec_log = 4
 
     cores_num_log = col_num_log+raw_num_log
     size_per_core_log = all_size_log - cores_num_log
@@ -36,7 +40,7 @@ def my_vector_scalar(opts):
     col_num = 1<<col_num_log
     raw_num = 1<<raw_num_log
     all_size = 1<<all_size_log
-    factor_buff_size = 1<<calc_size_log
+    factor_buff_size = 1<<size_per_vec_log
     factor_FIFO_size = 1<<(size_per_core_log-1)
     cores_num = 1<<cores_num_log
     cores_size = 1<<size_per_core_log
@@ -223,8 +227,7 @@ def my_vector_scalar(opts):
                         # =====================================
                         in_vec = Mem_CT_FIFO_ls[col][raw].acquire(ObjectFifoPort.Consume, 1)
                         buff = buff_ls[col][raw]
-                        # times = 1<<(size_per_core_log-calc_size_log)
-                        times = 1 << size_per_core_log
+                        times = 1 << (size_per_core_log - size_per_vec_log)
                         vector_copy(in_vec,buff,times)
                         Mem_CT_FIFO_ls[col][raw].release(ObjectFifoPort.Consume, 1)
 
@@ -481,7 +484,7 @@ def my_vector_scalar(opts):
                         # =====================================
                     
                         out_put_vec = CT_Mem_FIFO_ls[col][raw].acquire(ObjectFifoPort.Produce, 1)
-                        times = 1<<(size_per_core_log-calc_size_log)
+                        times = 1<<(size_per_core_log-size_per_vec_log)
 
                         vector_copy(buff,out_put_vec,times)
                         CT_Mem_FIFO_ls[col][raw].release(ObjectFifoPort.Produce, 1)

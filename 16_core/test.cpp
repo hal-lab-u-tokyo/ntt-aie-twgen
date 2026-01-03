@@ -105,7 +105,8 @@ int main(int argc, const char *argv[])
   constexpr bool VERIFY = true;
   constexpr int IN_SIZE = all_size;
   std::cout << "IN_SIZE : " << IN_SIZE << "\n";
-  constexpr int IN_FACTOR_SIZE = (factor_single_size)*core_num;
+  // constexpr int IN_FACTOR_SIZE = (factor_single_size)*core_num;
+  constexpr int IN_FACTOR_SIZE = (factor_single_size)*col_num;
   std::cout << "IN_SIZE_factor : " << IN_FACTOR_SIZE << "\n";
   constexpr int OUT_SIZE = IN_SIZE;
   int OUT_SIZE_bit = IN_SIZE * sizeof(int) + trace_size;
@@ -175,7 +176,7 @@ int main(int argc, const char *argv[])
   // Compute reference results
   initialize_a(bufInA_reference, IN_SIZE);
   vector_bit_reverse(bufInA_reference, all_size_log);
-  ntt_cpu(bufInA_reference, all_size_log, w_ori, modulo_q, false, 1);
+  ntt_cpu(bufInA_reference, all_size_log, w_ori, modulo_q, false, 2);
 
   for (unsigned iter = 0; iter < n_iterations; iter++)
   {
@@ -187,7 +188,7 @@ int main(int argc, const char *argv[])
     vector_bit_reverse_and_separate(bufInA, all_size_log, size_per_core_log);
 
     initialize_twfactor(bufInFactor, IN_FACTOR_SIZE, w_ori);
-
+    
     memset(bufOutE, 0, OUT_SIZE * sizeof(int));
 
     bo_inA.sync(XCL_BO_SYNC_BO_TO_DEVICE);
@@ -252,13 +253,15 @@ int main(int argc, const char *argv[])
         int32_t output = bufOutE[i];
         // int32_t correct_flag = 1;
 
+        outfile << "index : " << i << " , correct : " << expected << ", output:" << output;
         if (output != expected)
         {
           miss_cnt += 1;
           // correct_flag = 0;
           // std::cout << "index : " << i << " , correct : " << expected << ", output:" << output << "\n";
+          outfile << "  <-- MISMATCH!";
         }
-        outfile << "index : " << i << " , correct : " << expected << ", output:" << output << "\n";
+        outfile << "\n";
       }
       
       if (miss_cnt == 0)

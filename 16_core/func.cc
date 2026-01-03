@@ -124,7 +124,11 @@ extern "C"
     aie::vector<int32_t, vec_prime> factor_vec_1;
     aie::vector<int32_t, vec_prime> factor_vec_2;
 
-    aie::vector<int32_t, vec_prime> factor_vec;
+    aie::vector<int32_t, vec_prime> factor_vec_stage;
+
+        // On-the-fly compute factor vectors
+        aie::vector<int32_t, vec_prime>
+            factor_vec;
     if (stage == 1)
     {
       factor_vec = aie::broadcast<int32_t, vec_prime>(1);
@@ -133,15 +137,17 @@ extern "C"
     {
       aie::vector<int32_t, vec_prime_half> factor_vec_1_half = aie::load_v<vec_prime_half>(factor_buff);
       factor_vec_1 = aie::load_v<vec_prime>(factor_buff);
-      aie::vector<int32_t, vec_prime> factor_vec_stage = aie::broadcast<int32_t, vec_prime>(factor_fifo_buff[all_size_log - (stage)]);
+      // aie::vector<int32_t, vec_prime> factor_vec_stage = aie::broadcast<int32_t, vec_prime>(factor_fifo_buff[all_size_log - (stage)]);
+      factor_vec_stage = aie::broadcast<int32_t, vec_prime>(factor_fifo_buff[all_size_log - (stage)]);
       aie::vector<int32_t, vec_prime_half> factor_vec_stage_half = aie::broadcast<int32_t, vec_prime_half>(factor_fifo_buff[all_size_log - (stage)]);
       factor_vec_2 = vector_barrett(factor_vec_1, q_vector, factor_vec_stage, u_vector, barret_w);
       aie::vector<int32_t, vec_prime_half> factor_vec_2_half = vector_barrett_half(factor_vec_1_half, q_vector_half, factor_vec_stage_half, u_vector_half, barret_w);
       auto [res, res2] = aie::interleave_zip(factor_vec_1_half, factor_vec_2_half, 1);
       factor_vec = aie::concat(res, res2);
     }
-
     aie::store_v(factor_buff, factor_vec);
+    
+    // Compute NTT stage
     int32_t w_stage_cnt = 1 << (all_size_log - (stage - 1));
     int32_t gap = 1 << ((stage - 1) - 1);
     int32_t BF_elements = 1 << (stage - 1);
@@ -168,6 +174,7 @@ extern "C"
 
     if (stage != 1)
     {
+      // first half
       for (int i = 0; i < (1 << (size_per_core_log - 6)); i++)
       {
         int32_t *BF_index_in_1 = buff_in + i * vec_prime * 2;
@@ -199,6 +206,7 @@ extern "C"
         aie::store_v(BF_index_out_2, res2);
       }
 
+      // second half
       for (int i = 0; i < (1 << (size_per_core_log - 6)); i++)
       {
         int32_t *BF_index_in_1 = buff_in + i * vec_prime * 2 + core_half_size;

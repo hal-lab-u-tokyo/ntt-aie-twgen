@@ -41,7 +41,8 @@ def my_vector_scalar(opts):
     raw_num = 1<<raw_num_log
     all_size = 1<<all_size_log
     factor_buff_size = 1<<size_per_vec_log
-    factor_FIFO_size = 1<<(size_per_core_log-1)
+    # factor_FIFO_size = 1<<(size_per_core_log-1)
+    factor_FIFO_size = 16
     cores_num = 1<<cores_num_log
     cores_size = 1<<size_per_core_log
     barret_w = 17
@@ -55,8 +56,8 @@ def my_vector_scalar(opts):
         factor_buff_ty = np.ndarray[(factor_buff_size,), np.dtype[np.int32]]
         mem_ty = np.ndarray[(1<<(all_size_log-col_num_log),), np.dtype[np.int32]]
         factor_FIFO_ty = np.ndarray[(factor_FIFO_size,), np.dtype[np.int32]]
-        factor_mem_FIFO_ty = np.ndarray[(factor_FIFO_size*raw_num,), np.dtype[np.int32]]
-        factor_all_ty = np.ndarray[(factor_FIFO_size*cores_num,), np.dtype[np.int32]]
+        factor_mem_FIFO_ty = np.ndarray[(factor_FIFO_size,), np.dtype[np.int32]]
+        factor_all_ty = np.ndarray[(factor_FIFO_size*col_num,), np.dtype[np.int32]]
         flag_ty = np.ndarray[(1,), np.dtype[np.int32]]
 
         
@@ -205,7 +206,7 @@ def my_vector_scalar(opts):
         for col in range(col_num):
             object_fifo_link(Shim_Mem_FIFO_ls[col], [Mem_CT_FIFO_ls[col][raw] for raw in range(raw_num)],[],[raw*cores_size for raw in range(raw_num)])
             object_fifo_link( [CT_Mem_FIFO_ls[col][raw] for raw in range(raw_num)], Mem_Shim_FIFO_ls[col],[raw * cores_size for raw in range(raw_num)],[])
-            object_fifo_link(Shim_Mem_factor_FIFO_ls[col], [Mem_CT_factor_FIFO_ls[col]],[],[raw * factor_FIFO_size for raw in range(raw_num)])
+            object_fifo_link(Shim_Mem_factor_FIFO_ls[col], Mem_CT_factor_FIFO_ls[col],[],[raw * factor_FIFO_size for raw in range(raw_num)])
 
 
 
@@ -238,8 +239,9 @@ def my_vector_scalar(opts):
                         # 内部計算
                         # =====================================
 
-                        NTT_stage_down(buff,buff,factor_buff,factor_FIFO_buff,1,all_size_log,size_per_core_log,modulo_q,barret_w,barret_u)
-                        
+                        for stage in range(1, 3):
+                            NTT_stage_down(buff,buff,factor_buff,factor_FIFO_buff,stage,all_size_log,size_per_core_log,modulo_q,barret_w,barret_u)
+
                         # if size_per_core_log < 5:
                         #     for stage in range(1,size_per_core_log+1):
                         #         NTT_stage_down(buff,buff,factor_buff,factor_FIFO_buff,stage,all_size_log,size_per_core_log,modulo_q,barret_w,barret_u)
@@ -260,7 +262,7 @@ def my_vector_scalar(opts):
 
                         # Cleanup
                         Mem_CT_factor_FIFO_ls[col].release(ObjectFifoPort.Consume, 1)
-
+                        
 
                         """
                         
@@ -515,7 +517,7 @@ def my_vector_scalar(opts):
                                    issue_token=True)
                 
                 npu_dma_memcpy_nd(metadata = Shim_Mem_factor_FIFO_ls[col], bd_id= col + col_num, mem=in_put_factor ,
-                                   sizes=[1, 1, 1, (factor_FIFO_size*raw_num)], offsets = [0,0,0,(factor_FIFO_size)*raw_num*col],
+                                   sizes=[1, 1, 1, factor_FIFO_size], offsets = [0,0,0,factor_FIFO_size*col],
                                    issue_token=True)
                 
                 npu_dma_memcpy_nd(metadata = Mem_Shim_FIFO_ls[col], bd_id=2*col_num+col, mem=out_put ,

@@ -84,6 +84,7 @@ int mod_mul(int a, int b, int mod)
 
 // NTT
 // data: bit-reversed input/output array
+// stop_stage_for_debug: 1-origin stage index
 void ntt_cpu(int *data, int logN, int W, int MOD, bool inverse, int stop_stage_for_debug)
 {
     int N = 1 << logN;

@@ -27,7 +27,7 @@ def my_vector_scalar(opts):
     # Change here for different configurations
     all_size_log = 16
     modulo_q = 65537
-    n_stage_for_debug = 5
+    n_stage_for_debug = 12
     # ===================================
     
 
@@ -240,8 +240,16 @@ def my_vector_scalar(opts):
                         # 内部計算
                         # =====================================
 
-                        for stage in range(1, n_stage_for_debug + 1):
-                            NTT_stage_down(buff,buff,factor_buff,factor_FIFO_buff,stage,all_size_log,size_per_core_log,modulo_q,barret_w,barret_u)
+                        if n_stage_for_debug < 5:
+                            for stage in range(1,n_stage_for_debug+1):
+                                NTT_stage_down(buff,buff,factor_buff,factor_FIFO_buff,stage,all_size_log,size_per_core_log,modulo_q,barret_w,barret_u)
+
+                        else:
+                            for stage in range(1,6):
+                                NTT_stage_down(buff,buff,factor_buff,factor_FIFO_buff,stage,all_size_log,size_per_core_log,modulo_q,barret_w,barret_u)
+
+                            for stage in range(6,n_stage_for_debug+1):
+                                NTT_stage_up(buff,buff,factor_buff,factor_FIFO_buff,stage,all_size_log,size_per_core_log,modulo_q,barret_w,barret_u)
 
                         # TODO: This is dummy output
                         out_vec = CT_Mem_FIFO_ls[col][raw].acquire(ObjectFifoPort.Produce, 1)
@@ -260,6 +268,12 @@ def my_vector_scalar(opts):
                         
                         # =====================================
                         # 隣接タイルBF 1
+                        #  3  7 11 15
+                        #  |  |  |  |
+                        #  2  6 10 14
+                        #  1  5  9 13
+                        #  |  |  |  |
+                        #  0  4  8 12
                         # =====================================
                         up_down_flag_fifo_ls[col][raw].acquire(ObjectFifoPort.Produce, 1)
                         #======
@@ -289,6 +303,17 @@ def my_vector_scalar(opts):
 
                         # =====================================
                         # SWAP 1
+                        # Before swap:
+                        #  3  7 11 15
+                        #  2  6 10 14
+                        #  1  5  9 13
+                        #  0  4  8 12
+                        #
+                        # After swap:
+                        #  3  7 11 15
+                        #  1  5  9 13
+                        #  2  6 10 14
+                        #  0  4  8 12
                         # =====================================
                         
                         destination = swap_destination[col][raw]
@@ -306,6 +331,13 @@ def my_vector_scalar(opts):
 
                         # =====================================
                         # 隣接タイルBF 1
+                        # =====================================
+                        #  3  7 11 15
+                        #  |  |  |  |
+                        #  1  5  9 13
+                        #  2  6 10 14
+                        #  |  |  |  |
+                        #  0  4  8 12 
                         # =====================================
                         
                         up_down_flag_fifo_ls[col][raw].acquire(ObjectFifoPort.Produce, 1)
@@ -341,6 +373,8 @@ def my_vector_scalar(opts):
                         
                         # =====================================
                         # SWAP 1-2
+
+                        なぜ必要？
                         # =====================================
 
                         # 次のため
@@ -362,6 +396,10 @@ def my_vector_scalar(opts):
                 
                         # =====================================
                         # 横の計算
+                        #  3 - 7 11 - 15
+                        #  1 - 5  9 - 13
+                        #  2 - 6 10 - 14
+                        #  0 - 4  8 - 12 
                         # =====================================
 
 
@@ -393,6 +431,17 @@ def my_vector_scalar(opts):
 
                         # =====================================
                         # SWAP 2-1
+                        # Before swap:
+                        #  3  7 11 15
+                        #  1  5  9 13
+                        #  2  6 10 14
+                        #  0  4  8 12
+                        
+                        # After swap:
+                        #  3  11 7 15
+                        #  1  9  5 13
+                        #  2 10  6 14
+                        #  0  8  4 12
                         # =====================================
 
                         # 次のため
@@ -419,15 +468,12 @@ def my_vector_scalar(opts):
                         
                         # =====================================
                         # 横の計算 2
+                        #  3 -  11 7 - 15
+                        #  1 -  9  5 - 13
+                        #  2 - 10  6 - 14
+                        #  0 -  8  4 - 12
                         # =====================================
 
-                        #======
-                        # # 次のswapよう
-                        # destination = swap_2_destination[col][raw]
-                        # if core_index != destination:
-                        #     swap_2_fifo_flag_ls[col][raw].acquire(ObjectFifoPort.Produce, 1)
-                        #====
-                        
                         stage = size_per_core_log+4
                         reached_tile = 1
                         if col % 2 == 1:
@@ -450,24 +496,6 @@ def my_vector_scalar(opts):
                         right_left_flag_fifo_ls[col][raw].release(ObjectFifoPort.Produce, 1)
                         right_left_flag_fifo_ls[col+reached_tile][raw].acquire(ObjectFifoPort.Consume, 1)
                         right_left_flag_fifo_ls[col+reached_tile][raw].release(ObjectFifoPort.Consume, 1)
-
-
-                        # =====================================
-                        # SWAP 2-2
-                        # =====================================
-                        
-                        # destination = swap_2_destination[col][raw]
-
-                        # if core_index != destination:
-                        #     swap_2_fifo_flag_ls[col][raw].release(ObjectFifoPort.Produce, 1)
-                        #     swap_2_fifo_flag_ls[destination // raw_num][destination % raw_num].acquire(ObjectFifoPort.Consume, 1)
-                        #     if core_index > destination:
-                        #         swap(buff_ls[col][raw],buff_ls[destination // raw_num][destination % raw_num],0 , 1<<(size_per_core_log-4))
-                        #     swap_2_fifo_flag_ls[destination // raw_num][destination % raw_num].release(ObjectFifoPort.Consume, 1)
-                        
-                        #     swap_2_fifo_flag_ls[col][raw].acquire(ObjectFifoPort.Produce, 1)
-                        #     swap_2_fifo_flag_ls[col][raw].release(ObjectFifoPort.Produce, 1)
-                        
 
 
                         # =====================================

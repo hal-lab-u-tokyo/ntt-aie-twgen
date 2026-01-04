@@ -28,7 +28,9 @@ int32_t calc_mod_64(int64_t a, int32_t q);
 const int32_t all_size_log = 16;
 const int32_t modulo_q = 65537;
 const int32_t r = 3;
-const int n_stage_for_debug = 5;
+
+// 1-origin stage index
+const int n_stage_for_debug = 12;
 // ===================================
 
 const int32_t col_num_log = 2;

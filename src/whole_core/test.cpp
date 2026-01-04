@@ -14,9 +14,11 @@
 #include <sstream>
 #include <bitset>
 
-#include "nttlib.h"
+#include "../nttlib.h"
 #include "test_utils.h"
 #include "xrt/xrt_bo.h"
+#include "xrt/xrt_device.h"
+#include "xrt/xrt_kernel.h"
 
 void rearrange_to_normal_order(int *data, int32_t logN, int32_t logN_per_core);
 
@@ -41,7 +43,7 @@ const int32_t all_size = 1 << all_size_log;
 const int32_t ntt_size = 1 << ntt_size_log;
 const int32_t size_per_core_log = all_size_log - core_num_log;
 
-namespace po = boost::program_options;
+// namespace po = boost::program_options;
 
 
 void initialize_a(int *a, int32_t size)
@@ -112,11 +114,15 @@ int main(int argc, const char *argv[])
   // ===================================
   // Program arguments parsing
   // ===================================
-  po::options_description desc("Allowed options");
-  po::variables_map vm;
-  test_utils::add_default_options(desc);
+  // po::options_description desc("Allowed options");
+  // po::variables_map vm;
+  // test_utils::add_default_options(desc);
+  cxxopts::Options options("Vector Exp Test");
+  cxxopts::ParseResult vm;
+  test_utils::add_default_options(options);
+  test_utils::parse_options(argc, argv, options, vm);
 
-  test_utils::parse_options(argc, argv, desc, vm);
+  // test_utils::parse_options(argc, argv, desc, vm);
   int verbosity = vm["verbosity"].as<int>();
   int do_verify = vm["verify"].as<bool>();
   int n_iterations = vm["iters"].as<int>();
@@ -133,23 +139,41 @@ int main(int argc, const char *argv[])
   std::cout << "TRACE_SIZE : " << trace_size << "\n";
 
   // ===================================
-  // Load instruction sequence
+  // Start the XRT context and load the kernel 
   // ===================================
+  // Load instruction sequence
   std::vector<uint32_t> instr_v =
       test_utils::load_instr_binary(vm["instr"].as<std::string>());
 
-  if (verbosity >= 1)
-  {
-    std::cout << "Instruction loaded. size: " << instr_v.size() << "\n";
-  }
-
   // Start the XRT context and load the kernel
-  xrt::device device;
-  xrt::kernel kernel;
+  // Get a device handle
+  unsigned int device_index = 0;
+  auto device = xrt::device(device_index);
+  
+  // Load and register the xclbin
+  auto xclbin = xrt::xclbin(vm["xclbin"].as<std::string>());
+  device.register_xclbin(xclbin);
 
-  test_utils::init_xrt_load_kernel(device, kernel, verbosity,
-                                   vm["xclbin"].as<std::string>(),
-                                   vm["kernel"].as<std::string>());
+  // Load the kernel
+  std::string Node = vm["kernel"].as<std::string>();
+  auto xkernels = xclbin.get_kernels();
+  auto xkernel = *std::find_if(xkernels.begin(), xkernels.end(),
+                               [Node, verbosity](xrt::xclbin::kernel &k)
+                               {
+                                 auto name = k.get_name();
+                                 if (verbosity >= 1)
+                                 {
+                                   std::cout << "Name: " << name << std::endl;
+                                 }
+                                 return name.rfind(Node, 0) == 0;
+                               });
+  auto kernelName = xkernel.get_name();
+
+  // Get a hardware context
+  xrt::hw_context context(device, xclbin.get_uuid());
+
+  // Get a kernel handle
+  auto kernel = xrt::kernel(context, kernelName);
 
   // ===================================
   // Set up the buffer objects

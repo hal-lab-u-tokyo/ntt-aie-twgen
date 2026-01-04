@@ -5,7 +5,7 @@
 #include <cmath>
 #include <algorithm>
 
-#include "nttlib.h"
+#include "../nttlib.h"
 
 using namespace std;
 

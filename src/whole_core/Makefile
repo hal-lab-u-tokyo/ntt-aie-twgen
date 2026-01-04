@@ -35,10 +35,6 @@ build/final.xclbin: build/aie.mlir build/func.o
 				--no-xchesscc --no-xbridge --peano ${PEANO_INSTALL_DIR} \
 				--aie-generate-npu-insts --npu-insts-name=insts.bin $(<:%=../%)
 
-build/test-cpu: ${srcdir}/test_cpu.cpp nttlib.cpp
-	mkdir -p ${@D}
-	g++-13 -o $@ $^ -std=c++23
-
 ${targetname}.exe: ${srcdir}/test.cpp
 	rm -rf _build
 	mkdir -p _build
@@ -54,9 +50,6 @@ run-v: ${targetname}.exe build/final.xclbin
 
 run-10: ${targetname}.exe build/final.xclbin
 	${powershell} ./$< -x build/final.xclbin -i build/insts.bin -k MLIR_AIE --iters 10 -v 1
-
-test-cpu: build/test-cpu
-	./$<
 
 clean:
 	rm -rf build _build ${targetname}.exe

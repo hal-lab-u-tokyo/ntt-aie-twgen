@@ -237,7 +237,12 @@ def my_vector_scalar(opts):
                         factor_buff = factor_buff_ls[col][raw]
 
                         # =====================================
-                        # 内部計算
+                        # Start NTT
+                        # =====================================
+                        
+                        # =====================================
+                        # Inter-Tile NTT
+                        # Stage 1 to Stage (n-4)
                         # =====================================
 
                         if n_stage_for_debug < 5:

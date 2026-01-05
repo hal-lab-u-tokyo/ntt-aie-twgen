@@ -494,7 +494,7 @@ def my_vector_scalar(opts):
                                                        modulo_q,
                                                        barret_w,
                                                        barret_u,
-                                                       DEBUG_ON,
+                                                       DEBUG_OFF,
                                                        NO_STORE_FACTOR)                            
                                 half_bool = 1
                                 NTT_stage_next_up_down(buff_ls[col-1][raw],
@@ -512,11 +512,12 @@ def my_vector_scalar(opts):
                                                        modulo_q,
                                                        barret_w,
                                                        barret_u,
-                                                       DEBUG_ON,
+                                                       DEBUG_OFF,
                                                        STORE_FACTOR)
 
                             right_left_flag_fifo_ls[col - 1][raw].release(ObjectFifoPort.Consume, 1)
-                            right_left_flag_fifo_ls[col][raw].release(ObjectFifoPort.Produce, 1)
+                            if col != 1:
+                                right_left_flag_fifo_ls[col][raw].release(ObjectFifoPort.Produce, 1)
                         
 
                         # =====================================
@@ -547,25 +548,6 @@ def my_vector_scalar(opts):
                             swap_2_fifo_flag_ls[col][raw].release(ObjectFifoPort.Produce, 1)
                             right_left_flag_fifo_ls[col][raw].release(ObjectFifoPort.Produce, 1)
 
-
-                        # if col == 2:
-                        #     # For next NTT
-                        #     right_left_flag_fifo_ls[col][raw].acquire(ObjectFifoPort.Produce, 1)
-
-                        #     dest_column = 1
-                        #     dest_raw = raw
-                        #     swap_2_fifo_flag_ls[col][raw].release(ObjectFifoPort.Produce, 1)
-                        #     swap(buff_ls[col][raw],buff_ls[dest_column][dest_raw],0 , 1<<(size_per_core_log-4))
-                        #     swap_2_fifo_flag_ls[col][raw].release(ObjectFifoPort.Produce, 1)
-
-                        #     # For next NTT
-                        #     right_left_flag_fifo_ls[col][raw].release(ObjectFifoPort.Produce, 1)
-                        # elif col == 1:
-                        #     swap_2_fifo_flag_ls[col + 1][raw].acquire(ObjectFifoPort.Consume, 1)
-                        #     swap_2_fifo_flag_ls[col + 1][raw].release(ObjectFifoPort.Consume, 1)
-                        #     right_left_flag_fifo_ls[col][raw].acquire(ObjectFifoPort.Produce, 1)
-                        #     right_left_flag_fifo_ls[col][raw].release(ObjectFifoPort.Produce, 1)
-
                         # =====================================
                         # NTT Stage (n)
                         # =====================================
@@ -575,26 +557,83 @@ def my_vector_scalar(opts):
                         #  0 -  8  4 - 12
                         # =====================================
                         if col == 0:
+                            # Wait for NTT stage (n)
                             right_left_flag_fifo_ls[col + 1][raw].acquire(ObjectFifoPort.Consume, 1)
                             right_left_flag_fifo_ls[col + 1][raw].release(ObjectFifoPort.Consume, 1)
-                        elif col == 1:
-                            swap_2_fifo_flag_ls[col+1][raw].acquire(ObjectFifoPort.Consume, 1)
-                            swap_2_fifo_flag_ls[col+1][raw].release(ObjectFifoPort.Consume, 1)
-                        #     # NTT
-                        #     right_left_flag_fifo_ls[col][raw].acquire(ObjectFifoPort.Produce, 1)
-                        #     right_left_flag_fifo_ls[col][raw].release(ObjectFifoPort.Produce, 1)
-                        # elif col == 3:
-                        #     # NTT
-                        #     right_left_flag_fifo_ls[col - 1][raw].acquire(ObjectFifoPort.Consume, 1)
-                        #     right_left_flag_fifo_ls[col - 1][raw].release(ObjectFifoPort.Consume, 1)
-                        
-                        if col == 3:
-                            right_left_flag_fifo_ls[col - 1][raw].acquire(ObjectFifoPort.Consume, 1)
-                            right_left_flag_fifo_ls[col - 1][raw].release(ObjectFifoPort.Consume, 1)
-                        # elif col == 0:
-                        #     right_left_flag_fifo_ls[col + 1][raw].acquire(ObjectFifoPort.Consume, 1)
-                        #     right_left_flag_fifo_ls[col + 1][raw].release(ObjectFifoPort.Consume, 1) 
+                        elif col == 2:
+                            # Wait for NTT stage (n)
+                            right_left_flag_fifo_ls[col + 1][raw].acquire(ObjectFifoPort.Consume, 1)
+                            right_left_flag_fifo_ls[col + 1][raw].release(ObjectFifoPort.Consume, 1)
 
+                        if col == 1 or col == 3:
+                            if col == 1:
+                                # Wait for SWAP
+                                swap_2_fifo_flag_ls[col+1][raw].acquire(ObjectFifoPort.Consume, 1)
+                                swap_2_fifo_flag_ls[col+1][raw].release(ObjectFifoPort.Consume, 1)
+                            elif col == 3:
+                                # Wait for SWAP
+                                right_left_flag_fifo_ls[col - 1][raw].acquire(ObjectFifoPort.Consume, 1)
+                                right_left_flag_fifo_ls[col - 1][raw].release(ObjectFifoPort.Consume, 1)
+
+                            half_bool = 0
+                            stage = all_size_log
+                            factor_scalar = 1
+                            factor_scaler_index = 1
+                            if raw == 0:
+                                factor_scaler_index = 0
+                            elif raw == 1:
+                                factor_scaler_index = 2
+                            elif raw == 2:
+                                factor_scaler_index = 1
+                            elif raw == 3:
+                                factor_scaler_index = 3
+                            if col == 3:
+                                factor_scaler_index = factor_scaler_index + 4
+                            factor_scalar = 1
+                            for _ in range(factor_scaler_index):
+                                factor_scalar = factor_scalar*factor_FIFO_buff[all_size_log-stage+size_per_core_log] % modulo_q
+
+                            NTT_stage_next_up_down(buff_ls[col-1][raw],
+                                                    buff_ls[col][raw],
+                                                    buff_ls[col-1][raw],
+                                                    buff_ls[col][raw],
+                                                    factor_buff,
+                                                    factor_FIFO_buff,
+                                                    factor_scalar,
+                                                    half_bool,
+                                                    stage,
+                                                    all_size_log,
+                                                    size_per_core_log,
+                                                    (1<< (size_per_core_log-5)),
+                                                    modulo_q,
+                                                    barret_w,
+                                                    barret_u,
+                                                    DEBUG_ON,
+                                                    NO_STORE_FACTOR)                            
+                            half_bool = 1
+                            NTT_stage_next_up_down(buff_ls[col-1][raw],
+                                                    buff_ls[col][raw],
+                                                    buff_ls[col-1][raw],
+                                                    buff_ls[col][raw],
+                                                    factor_buff,
+                                                    factor_FIFO_buff,
+                                                    factor_scalar,
+                                                    half_bool,
+                                                    stage,
+                                                    all_size_log,
+                                                    size_per_core_log,
+                                                    (1<< (size_per_core_log-5)),
+                                                    modulo_q,
+                                                    barret_w,
+                                                    barret_u,
+                                                    DEBUG_ON,
+                                                    STORE_FACTOR)
+                            if col == 1:
+                                # This flag have been acquired in NTT stage (n-1)
+                                right_left_flag_fifo_ls[col][raw].release(ObjectFifoPort.Produce, 1)
+                            elif col == 3:
+                                right_left_flag_fifo_ls[col][raw].acquire(ObjectFifoPort.Produce, 1)
+                                right_left_flag_fifo_ls[col][raw].release(ObjectFifoPort.Produce, 1)
 
                         # =====================================
                         # cleanup
@@ -606,78 +645,9 @@ def my_vector_scalar(opts):
                         CT_Mem_FIFO_ls[col][raw].release(ObjectFifoPort.Produce, 1)
 
                         # Cleanup
-                        Mem_CT_factor_FIFO_ls[col].release(ObjectFifoPort.Consume, 1)
-                        
-                        
-
-                        """
-                        # For next swap
-                            destination = swap_2_destination[col][raw]
-                            if core_index != destination:
-                                swap_2_fifo_flag_ls[col][raw].acquire(ObjectFifoPort.Produce, 1)
-                            
-                        
-                        
-                        
-                        right_left_flag_fifo_ls[col][raw].release(ObjectFifoPort.Produce, 1)
-                        right_left_flag_fifo_ls[col+reached_tile][raw].acquire(ObjectFifoPort.Consume, 1)
-                        right_left_flag_fifo_ls[col+reached_tile][raw].release(ObjectFifoPort.Consume, 1)
-
+                        Mem_CT_factor_FIFO_ls[col].release(ObjectFifoPort.Consume, 1)                        
 
                         
-                        # 次のため
-                        right_left_flag_fifo_ls[col][raw].acquire(ObjectFifoPort.Produce, 1)
-                        
-                        
-                        destination = swap_2_destination[col][raw]
-
-                        
-                        
-
-                        
-                        
-
-                        stage = size_per_core_log+4
-                        reached_tile = 1
-                        if col % 2 == 1:
-                            temp_index = 0
-                            if col == 3:
-                                temp_index = 4
-
-
-                            factor_scaler_index = raw + temp_index
-                            half_bool = 0
-                            
-                            factor_scalar = 1
-                            reached_tile = -1
-
-                            for _ in range(factor_scaler_index):
-                                factor_scalar = factor_scalar*factor_FIFO_buff[all_size_log-stage+size_per_core_log] % modulo_q
-
-                            NTT_stage_next_up_down(buff_ls[col-1][raw],buff_ls[col][raw],buff_ls[col-1][raw],buff_ls[col][raw],factor_buff,factor_FIFO_buff, factor_scalar,half_bool,stage, all_size_log,size_per_core_log,(1<< (size_per_core_log-4)),modulo_q, barret_w, barret_u)                            
-
-                        right_left_flag_fifo_ls[col][raw].release(ObjectFifoPort.Produce, 1)
-                        right_left_flag_fifo_ls[col+reached_tile][raw].acquire(ObjectFifoPort.Consume, 1)
-                        right_left_flag_fifo_ls[col+reached_tile][raw].release(ObjectFifoPort.Consume, 1)
-
-
-                        # =====================================
-                        # ComputeTile → ShimTile
-                        # =====================================
-                    
-                        out_put_vec = CT_Mem_FIFO_ls[col][raw].acquire(ObjectFifoPort.Produce, 1)
-                        times = 1<<(size_per_core_log-size_per_vec_log)
-
-                        vector_copy(buff,out_put_vec,times)
-                        CT_Mem_FIFO_ls[col][raw].release(ObjectFifoPort.Produce, 1)
-                        """
-                        
-
-
-
-
-
-
         # ===================
         # Runtime Sequence
         # ===================

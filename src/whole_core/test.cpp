@@ -83,7 +83,8 @@ void rearrange_from_aie_order(int *data, int32_t logN, int32_t logN_per_core)
   // Inter tile order
   // ===================
   // Change core order
-  std::vector<int> aie_order = {0, 2, 1, 3, 4, 6, 5, 7, 8, 10, 9, 11, 12, 14, 13, 15};
+  std::vector<int> aie_order = {0, 2, 1, 3, 8, 10, 9, 11, 4, 6, 5, 7, 12, 14, 13, 15};
+  // std::vector<int> aie_order = {0, 2, 1, 3, 4, 6, 5, 7, 8, 10, 9, 11, 12, 14, 13, 15};
   for (int i = 0; i < core_num; i++){
     int aie_order_index = aie_order[i];
     int *temp_ptr = temp + i * N_per_core;

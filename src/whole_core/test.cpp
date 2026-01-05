@@ -28,7 +28,7 @@ void rearrange_to_normal_order(int *data, int32_t logN, int32_t logN_per_core);
 const int32_t all_size_log = 16;
 const int32_t modulo_q = 65537;
 const int32_t r = 3;
-const int n_stage_for_debug = 12; // 1-origin stage index
+const int n_stage_for_debug = 13; // 1-origin stage index
 // ===================================
 
 const int32_t col_num_log = 2;
@@ -56,6 +56,7 @@ void initialize_a(int *a, int32_t size)
 
 void initialize_twfactor(int *buff, int32_t size, int32_t w_ori)
 {
+  std::cout << "w_ori in init twiddle: " << w_ori << "\n";
   for (int core = 0; core < core_num; core++){
     for (int i = 0; i < factor_single_size; i++){
         int w_temp = 1;
@@ -67,6 +68,7 @@ void initialize_twfactor(int *buff, int32_t size, int32_t w_ori)
             w_temp += modulo_q + 1;
           }
         }
+        // std::cout << "Core " << core << " Twiddle factor index " << i << " = w ^" << w_index << " = " << w_temp << "\n";
         buff[i + factor_single_size * core] = w_temp;
     }
   }
@@ -227,7 +229,16 @@ int main(int argc, const char *argv[])
 
     // Twiddle factors
     initialize_twfactor(bufInFactor, IN_FACTOR_SIZE, w_ori);
-    
+    if (verbosity >= 2) {
+      for (int i = 0; i < core_num; i++) {
+        std::cout << "Core " << i << " Twiddle factors: ";
+        for (int j = 0; j < factor_single_size; j++) {
+          std::cout << bufInFactor[i * factor_single_size + j] << " ";
+        }
+        std::cout << "\n";
+      }
+    }
+
     // Clear output buffer
     memset(bufOutE, 0, OUT_SIZE * sizeof(int));
 

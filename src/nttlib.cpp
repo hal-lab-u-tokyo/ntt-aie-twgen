@@ -3,6 +3,8 @@
 #include <cstdio>
 #include <algorithm>
 
+bool debug = false;
+
 int power(int base, int exp, int mod)
 {
     int res = 1;
@@ -100,6 +102,12 @@ void ntt_cpu(int *data, int logN, int W, int MOD, bool inverse, int stop_stage_f
     int ws, half, wi, u, v, term;
     for (int s = 0; s < logN; ++s)
     {
+        if (debug == true)
+        {
+            printf("=============================================\n");
+            printf("NTT Stage %d/%d\n", s + 1, logN);
+            printf("=============================================\n");
+        }
         pow_step >>= 1;
         ws = power(current_W, pow_step, MOD);
 
@@ -122,7 +130,9 @@ void ntt_cpu(int *data, int logN, int W, int MOD, bool inverse, int stop_stage_f
                 data[i] = (u + term) % MOD;
                 data[j] = (u - term + MOD) % MOD;
 
-                // printf("butterfly: data[%u]=%u, data[%u]=%u, tw_idx=%d\n", i, data[i], j, data[j], wi_index);
+                if (debug == true) {
+                    printf("stage %d butterfly: data[%u]=%u, data[%u]=%u, tw_idx[%d]=%u, from u=%u, v=%u\n", s + 1, i, data[i], j, data[j], wi_index, wi, u, v);
+                }
 
                 wi = mod_mul(wi, ws, MOD);
                 wi_index += pow_step;

@@ -35,7 +35,7 @@ build/final.xclbin: build/aie.mlir build/func.o
 				--no-xchesscc --no-xbridge --peano ${PEANO_INSTALL_DIR} \
 				--aie-generate-npu-insts --npu-insts-name=insts.bin $(<:%=../%)
 
-${targetname}.exe: ${srcdir}/test.cpp
+${targetname}.exe: ${srcdir}/test.cpp ../nttlib.cpp
 	rm -rf _build
 	mkdir -p _build
 	cd _build && ${powershell} cmake -E env CXXFLAGS="-std=c++23 -ggdb" cmake ${srcdir} -D CMAKE_C_COMPILER=gcc-13 -D CMAKE_CXX_COMPILER=g++-13 -DTARGET_NAME=${targetname} 

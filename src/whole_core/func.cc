@@ -319,22 +319,30 @@ extern "C"
     aie::vector<int32_t, vec_prime> u_vector = aie::broadcast<int32_t, vec_prime>(barret_u);
     aie::vector<int32_t, vec_prime_half> u_vector_half = aie::broadcast<int32_t, vec_prime_half>(barret_u);
 
-    aie::vector<int32_t, vec_prime_half> factor_vec_1 = aie::load_v<vec_prime_half>(factor_buff);
-    aie::vector<int32_t, vec_prime_half> factor_vec_stage_half = aie::broadcast<int32_t, vec_prime_half>(factor_fifo_buff[all_size_log - stage]);
-
-    // aie::vector<int32_t, vec_prime> factor_vec_stage_full = aie::broadcast<int32_t, vec_prime>(factor_fifo_buff[all_size_log-stage]);
-    aie::vector<int32_t, vec_prime_half> factor_vec_2 = vector_barrett_half(factor_vec_1, q_vector_half, factor_vec_stage_half, u_vector_half, barret_w);
-    auto [res, res2] = aie::interleave_zip(factor_vec_1, factor_vec_2, 1);
-    aie::vector<int32_t, vec_prime> factor_vec = aie::concat(res, res2);
+    aie::vector<int32_t, vec_prime> factor_vec = aie::load_v<vec_prime>(factor_buff);
     aie::store_v(factor_buff, factor_vec);
 
+    if (half_bool == 1)
+    {
+      aie::vector<int32_t, vec_prime> factor_scalar_vec = aie::broadcast<int32_t, vec_prime>(factor_fifo_buff[all_size_log - stage]);
+      factor_vec = vector_barrett(factor_scalar_vec, q_vector, factor_vec, u_vector, barret_w);
+    }
+    aie::vector<int32_t, vec_prime> factor_vec_stage_2_full = aie::broadcast<int32_t, vec_prime>(factor_fifo_buff[all_size_log - stage + 5]);
+
+    /* archived code
+    // aie::vector<int32_t, vec_prime_half> factor_vec_1 = aie::load_v<vec_prime_half>(factor_buff);
+    // aie::vector<int32_t, vec_prime_half> factor_vec_stage_half = aie::broadcast<int32_t, vec_prime_half>(factor_fifo_buff[all_size_log - stage]);
+
+    // // aie::vector<int32_t, vec_prime> factor_vec_stage_full = aie::broadcast<int32_t, vec_prime>(factor_fifo_buff[all_size_log-stage]);
+    // aie::vector<int32_t, vec_prime_half> factor_vec_2 = vector_barrett_half(factor_vec_1, q_vector_half, factor_vec_stage_half, u_vector_half, barret_w);
+    // auto [res, res2] = aie::interleave_zip(factor_vec_1, factor_vec_2, 1);
+    // aie::vector<int32_t, vec_prime> factor_vec = aie::concat(res, res2);
+
     // ここは上下で変わる
-    aie::vector<int32_t, vec_prime> factor_scalar_vec = aie::broadcast<int32_t, vec_prime>(factor_scalar);
-    factor_vec = vector_barrett(factor_scalar_vec, q_vector, factor_vec, u_vector, barret_w);
-    aie::vector<int32_t, vec_prime> factor_vec_stage_2_full = aie::broadcast<int32_t, vec_prime>(factor_fifo_buff[all_size_log - stage + 4]);
+    // aie::vector<int32_t, vec_prime> factor_scalar_vec = aie::broadcast<int32_t, vec_prime>(factor_scalar);
+    */
 
     int32_t half = half_bool * (1 << (size_per_core_log - 1));
-    // int32_t half = 0;
 
     for (int index = 0; index < times; index++)
     {
@@ -352,6 +360,7 @@ extern "C"
 
       aie::store_v(BF_index_out_1, add);
       aie::store_v(BF_index_out_2, sub);
+      
       factor_vec = vector_barrett(factor_vec, q_vector, factor_vec_stage_2_full, u_vector, barret_w);
     }
     event1();

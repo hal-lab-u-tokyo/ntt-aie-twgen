@@ -26,7 +26,7 @@
 const int32_t all_size_log = 16;
 const int32_t modulo_q = 65537;
 const int32_t r = 3;
-const int n_stage_for_debug = 14; // 1-origin stage index
+const int n_stage_for_debug = all_size_log - 1; // 1-origin stage index
 // ===================================
 
 const int32_t col_num_log = 2;

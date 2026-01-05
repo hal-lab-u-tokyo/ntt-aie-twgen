@@ -318,7 +318,7 @@ extern "C"
     event1();
   }
 
-  void NTT_stage_next_up_down(int32_t *buff_in_1, int32_t *buff_in_2, int32_t *buff_out_1, int32_t *buff_out_2, int32_t *factor_buff, int32_t *factor_fifo_buff, int32_t factor_scalar, int32_t half_bool, int32_t stage, int32_t all_size_log, int32_t size_per_core_log, int32_t times, int32_t modulo_q, int32_t barret_w, int32_t barret_u, int32_t if_debug)
+  void NTT_stage_next_up_down(int32_t *buff_in_1, int32_t *buff_in_2, int32_t *buff_out_1, int32_t *buff_out_2, int32_t *factor_buff, int32_t *factor_fifo_buff, int32_t factor_scalar, int32_t half_bool, int32_t stage, int32_t all_size_log, int32_t size_per_core_log, int32_t times, int32_t modulo_q, int32_t barret_w, int32_t barret_u, int32_t if_debug, int if_store_factor)
   {
     // factor_scale : 基準のfactor_buffに "factor_scale倍して計算をしていく"
     // CT3()ComputeTile_2では
@@ -338,12 +338,14 @@ extern "C"
     // (ii) half_bool == 1 のときは factor_scalar倍したものを使う
     // 次のstageのために、factor_vecとfactor_vec * factor_scalarのzipしたものをfactor_buffに保存する
     aie::vector<int32_t, vec_prime> factor_vec = aie::load_v<vec_prime>(factor_buff);
-    aie::vector<int32_t, vec_prime> factor_vec_1 = aie::load_v<vec_prime>(factor_buff);
-    aie::vector<int32_t, vec_prime> factor_vec_stage = aie::broadcast<int32_t, vec_prime>(factor_fifo_buff[all_size_log - stage]);
-    aie::vector<int32_t, vec_prime> factor_vec_2 = vector_barrett(factor_vec_1, q_vector, factor_vec_stage, u_vector, barret_w);
-    auto zipped = aie::interleave_zip(factor_vec_1, factor_vec_2, 1);
-    aie::store_v(factor_buff, zipped.first);
-    
+    if (if_store_factor == 1){
+      aie::vector<int32_t, vec_prime> factor_vec_1 = aie::load_v<vec_prime>(factor_buff);
+      aie::vector<int32_t, vec_prime> factor_vec_stage = aie::broadcast<int32_t, vec_prime>(factor_fifo_buff[all_size_log - stage]);
+      aie::vector<int32_t, vec_prime> factor_vec_2 = vector_barrett(factor_vec_1, q_vector, factor_vec_stage, u_vector, barret_w);
+      auto zipped = aie::interleave_zip(factor_vec_1, factor_vec_2, 1);
+      aie::store_v(factor_buff, zipped.first);
+    }
+
     // Compute Twiddle factor's index
     if (half_bool == 1)
     {
@@ -374,6 +376,8 @@ extern "C"
       aie::store_v(BF_index_out_2, sub);
       
       if (if_debug == 1){
+        // aie::store_v(BF_index_out_1, factor_vec);
+        // aie::store_v(BF_index_out_2, factor_vec);
       }
       
       factor_vec = vector_barrett(factor_vec, q_vector, factor_vec_stage_2_full, u_vector, barret_w);

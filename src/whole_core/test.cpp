@@ -20,8 +20,6 @@
 #include "xrt/xrt_device.h"
 #include "xrt/xrt_kernel.h"
 
-void rearrange_to_normal_order(int *data, int32_t logN, int32_t logN_per_core);
-
 // ===================================
 // Change here for different configurations
 // ===================================
@@ -56,7 +54,7 @@ void initialize_a(int *a, int32_t size)
 
 void initialize_twfactor(int *buff, int32_t size, int32_t w_ori)
 {
-  std::cout << "w_ori in init twiddle: " << w_ori << "\n";
+  // std::cout << "w_ori in init twiddle: " << w_ori << "\n";
   for (int core = 0; core < core_num; core++){
     for (int i = 0; i < factor_single_size; i++){
         int w_temp = 1;
@@ -75,28 +73,42 @@ void initialize_twfactor(int *buff, int32_t size, int32_t w_ori)
 }
 
 // Rearrange data from AIE's output order to normal order
-void rearrange_to_normal_order(int *data, int32_t logN, int32_t logN_per_core)
+void rearrange_from_aie_order(int *data, int32_t logN, int32_t logN_per_core)
 {
   int N = 1 << logN;
-  int single_size = 1 << logN_per_core;
-  int *temp_ls = new int[N];
-  for (int i = 0; i < N; i++)
-  {
-    temp_ls[i] = data[i];
+  int N_per_core = 1 << logN_per_core;
+  int *temp = new int[N];
+  
+  // ===================
+  // Inter tile order
+  // ===================
+  // Change core order
+  std::vector<int> aie_order = {0, 2, 1, 3, 4, 6, 5, 7, 8, 10, 9, 11, 12, 14, 13, 15};
+  for (int i = 0; i < core_num; i++){
+    int aie_order_index = aie_order[i];
+    int *temp_ptr = temp + i * N_per_core;
+    int *aie_ptr = data + aie_order_index * N_per_core;
+    for (int j = 0; j < N_per_core; j++){
+      temp_ptr[j] = aie_ptr[j];
+    }
   }
 
-  // Reverse order from AIE to CPU
+
+  // ===================
+  // Inner tile order
+  // ===================
+  // Reverse order in each tile
   // CPU: [0, 1, 2, 3, 4, 5, 6, 7]
   // AIE: [0, 2, 4, 6, 1, 3, 5, 7]
-  for (int i = 0; i < N; ++i)
-  {
-    int32_t idx_in_block = i % single_size;
-    int32_t idx_block = i / single_size;
-    int32_t odd_even_bit = idx_in_block & 1;
-    int32_t idx_aie = ((idx_in_block - odd_even_bit) >> 1) + (odd_even_bit * (single_size / 2)) + (idx_block * single_size);
-    data[i] = temp_ls[idx_aie];
+  for (int i = 0; i < core_num; i++){
+    for (int j = 0; j < (N_per_core / 2); j++){
+      int *data_ptr = data + i * N_per_core;
+      int *temp_ptr = temp + i * N_per_core;
+      data_ptr[2 * j] = temp_ptr[j];
+      data_ptr[2 * j + 1] = temp_ptr[(N_per_core / 2) + j];
+    }
   }
-  delete[] temp_ls;
+  delete[] temp;
 }
 
 int main(int argc, const char *argv[])
@@ -267,7 +279,7 @@ int main(int argc, const char *argv[])
     bo_outE.sync(XCL_BO_SYNC_BO_FROM_DEVICE);
     
     // Rearrange output data to normal order
-    rearrange_to_normal_order(bufOutE, all_size_log, size_per_core_log);
+    rearrange_from_aie_order(bufOutE, all_size_log, size_per_core_log);
 
     // ===================================
     // Verify

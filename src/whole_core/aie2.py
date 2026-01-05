@@ -271,7 +271,7 @@ def my_vector_scalar(opts):
                         destination = swap_destination[col][raw]
                         temp = col * raw_num + raw
                         if temp != destination:
-                            swap_fifo_flag_ls[col][raw].release(ObjectFifoPort.Produce, 1)
+                            swap_fifo_flag_ls[col][raw].acquire(ObjectFifoPort.Produce, 1)
                         #====
 
                         reached_tile = 0                        
@@ -284,19 +284,49 @@ def my_vector_scalar(opts):
                         stage = size_per_core_log+1
                         if raw % 2 == 0:
                             half_bool = 0
-                            # reached_tile = 1
                             factor_scalar = 1
                             NTT_stage_next_up_down(buff_ls[col][raw],buff_ls[col][raw+reached_tile],buff_ls[col][raw],buff_ls[col][raw+reached_tile],factor_buff,factor_FIFO_buff, factor_scalar,half_bool,stage, all_size_log,size_per_core_log,(1<< (size_per_core_log-5)),modulo_q, barret_w, barret_u)
                          
                         else:            
                             half_bool = 1
-                            # reached_tile = -1
                             factor_scalar = factor_FIFO_buff[all_size_log-stage+size_per_core_log-1]
                             NTT_stage_next_up_down(buff_ls[col][raw+reached_tile],buff_ls[col][raw],buff_ls[col][raw+reached_tile],buff_ls[col][raw],factor_buff,factor_FIFO_buff, factor_scalar,half_bool,stage, all_size_log,size_per_core_log,(1<< (size_per_core_log-5)),modulo_q, barret_w, barret_u)                            
 
                         up_down_flag_fifo_ls[col][raw+reached_tile].release(ObjectFifoPort.Consume, 1)
 
-                        
+                        #======
+                        # For next swap
+                        destination = swap_destination[col][raw]
+                        temp = col * raw_num + raw
+                        if temp != destination:
+                            swap_fifo_flag_ls[col][raw].release(ObjectFifoPort.Produce, 1)
+                        #====
+
+                        # =====================================
+                        # SWAP 1
+                        # Before swap:
+                        #  3  7 11 15
+                        #  2  6 10 14
+                        #  1  5  9 13
+                        #  0  4  8 12
+                        #
+                        # After swap:
+                        #  3  7 11 15
+                        #  1  5  9 13
+                        #  2  6 10 14
+                        #  0  4  8 12
+                        # =====================================
+                        destination = swap_destination[col][raw]
+
+                        if core_index != destination:
+                            swap_fifo_flag_ls[destination // raw_num][destination % raw_num].acquire(ObjectFifoPort.Consume, 1)
+                            if core_index > destination:
+                                swap(buff_ls[col][raw],buff_ls[destination // raw_num][destination % raw_num],0 , 1<<(size_per_core_log-5))
+                            if core_index < destination:
+                                swap(buff_ls[col][raw],buff_ls[destination // raw_num][destination % raw_num],1<<(size_per_core_log-1), 1<<(size_per_core_log-5))
+
+                            swap_fifo_flag_ls[destination // raw_num][destination % raw_num].release(ObjectFifoPort.Consume, 1)
+
 
                         # =====================================
                         # cleanup
@@ -313,34 +343,8 @@ def my_vector_scalar(opts):
 
                         """
                         
-                        # =====================================
-                        # SWAP 1
-                        # Before swap:
-                        #  3  7 11 15
-                        #  2  6 10 14
-                        #  1  5  9 13
-                        #  0  4  8 12
-                        #
-                        # After swap:
-                        #  3  7 11 15
-                        #  1  5  9 13
-                        #  2  6 10 14
-                        #  0  4  8 12
-                        # =====================================
                         
-                        destination = swap_destination[col][raw]
-
-                        if core_index != destination:
-                            swap_fifo_flag_ls[col][raw].release(ObjectFifoPort.Produce, 1)
-                            swap_fifo_flag_ls[destination // raw_num][destination % raw_num].acquire(ObjectFifoPort.Consume, 1)
-                            if core_index > destination:
-                                swap(buff_ls[col][raw],buff_ls[destination // raw_num][destination % raw_num],0 , 1<<(size_per_core_log-5))
-                            if core_index < destination:
-                                swap(buff_ls[col][raw],buff_ls[destination // raw_num][destination % raw_num],1<<(size_per_core_log-1), 1<<(size_per_core_log-5))
-
-                            swap_fifo_flag_ls[destination // raw_num][destination % raw_num].acquire(ObjectFifoPort.Consume, 1)
-                            swap_fifo_flag_ls[destination // raw_num][destination % raw_num].release(ObjectFifoPort.Consume, 1)
-
+                        
                         # =====================================
                         # 隣接タイルBF 1
                         # =====================================

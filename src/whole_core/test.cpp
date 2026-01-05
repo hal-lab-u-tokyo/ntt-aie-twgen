@@ -8,6 +8,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <cassert>
+#include <cmath>
 #include <cstdint>
 #include <fstream>
 #include <iostream>
@@ -23,26 +25,21 @@
 // ===================================
 // Change here for different configurations
 // ===================================
-const int32_t all_size_log = 16;
+const int32_t N_LOG = 16;
 const int32_t modulo_q = 65537;
 const int32_t r = 3;
-const int n_stage_for_debug = all_size_log; // 1-origin stage index
+const int n_stage_for_debug = N_LOG; // 1-origin stage index
 // ===================================
 
-const int32_t col_num_log = 2;
-const int32_t col_num = 1 << col_num_log;
-const int32_t raw_num_log = 2;
-const int32_t raw_num = 1 << raw_num_log;
-const int32_t core_num_log = col_num_log + raw_num_log;
-const int32_t core_num = col_num * raw_num;
-const int32_t factor_single_size = all_size_log;
-const int32_t ntt_size_log = all_size_log;
-const int32_t all_size = 1 << all_size_log;
-const int32_t ntt_size = 1 << ntt_size_log;
-const int32_t size_per_core_log = all_size_log - core_num_log;
-
-// namespace po = boost::program_options;
-
+const int32_t N = 1 << N_LOG;
+const int32_t COL_NUM_LOG = 2;
+const int32_t COL_NUM = 1 << COL_NUM_LOG;
+const int32_t RAW_NUM_LOG = 2;
+const int32_t RAW_NUM = 1 << RAW_NUM_LOG;
+const int32_t CORE_NUM_LOG = COL_NUM_LOG + RAW_NUM_LOG;
+const int32_t CORE_NUM = COL_NUM * RAW_NUM;
+const int32_t FACTOR_SIZE_PER_CORE = N_LOG + 3;
+const int32_t N_LOG_PER_CORE = N_LOG - CORE_NUM_LOG;
 
 void initialize_a(int *a, int32_t size)
 {
@@ -52,23 +49,27 @@ void initialize_a(int *a, int32_t size)
   }
 }
 
-void initialize_twfactor(int *buff, int32_t size, int32_t w_ori)
+// Initialize twiddle factors for all columns
+// Output buffer consists of `COL_NUM` loops of `FACTOR_SIZE_PER_CORE` twiddle factors
+// Each `FACTOR_SIZE_PER_CORE` buffer is:
+// [w, w^2, w^4, w^8, ..., w^(2^(N_LOG-1)), modulus, barrett_w, barrett_u]
+void initialize_twfactor(int *buff, int32_t size, int32_t mod, int32_t w_ori)
 {
-  // std::cout << "w_ori in init twiddle: " << w_ori << "\n";
-  for (int core = 0; core < core_num; core++){
-    for (int i = 0; i < factor_single_size; i++){
+  assert(size == FACTOR_SIZE_PER_CORE * COL_NUM);
+  for (int core = 0; core < CORE_NUM; core++){
+    for (int i = 0; i < N_LOG; i++){
         int w_temp = 1;
         int w_index = 1 << (i);
         for (int j = 0; j < w_index; j++){
-          w_temp = (w_temp * w_ori) % modulo_q;
-          if (w_temp < 0)
-          {
-            w_temp += modulo_q + 1;
-          }
+          w_temp = (w_temp * w_ori) % mod;
         }
-        // std::cout << "Core " << core << " Twiddle factor index " << i << " = w ^" << w_index << " = " << w_temp << "\n";
-        buff[i + factor_single_size * core] = w_temp;
+        buff[i + FACTOR_SIZE_PER_CORE * core] = w_temp;
     }
+    int barrett_w = std::ceil(std::log2(mod));
+    int barrett_u = ((int64_t)1<<(2 * barrett_w)) / mod;
+    buff[FACTOR_SIZE_PER_CORE * core + N_LOG] = mod;
+    buff[FACTOR_SIZE_PER_CORE * core + N_LOG + 1] = barrett_w;
+    buff[FACTOR_SIZE_PER_CORE * core + N_LOG + 2] = barrett_u;
   }
 }
 
@@ -84,8 +85,7 @@ void rearrange_from_aie_order(int *data, int32_t logN, int32_t logN_per_core)
   // ===================
   // Change core order
   std::vector<int> aie_order = {0, 2, 1, 3, 8, 10, 9, 11, 4, 6, 5, 7, 12, 14, 13, 15};
-  // std::vector<int> aie_order = {0, 2, 1, 3, 4, 6, 5, 7, 8, 10, 9, 11, 12, 14, 13, 15};
-  for (int i = 0; i < core_num; i++){
+  for (int i = 0; i < CORE_NUM; i++){
     int aie_order_index = aie_order[i];
     int *temp_ptr = temp + i * N_per_core;
     int *aie_ptr = data + aie_order_index * N_per_core;
@@ -101,7 +101,7 @@ void rearrange_from_aie_order(int *data, int32_t logN, int32_t logN_per_core)
   // Reverse order in each tile
   // CPU: [0, 1, 2, 3, 4, 5, 6, 7]
   // AIE: [0, 2, 4, 6, 1, 3, 5, 7]
-  for (int i = 0; i < core_num; i++){
+  for (int i = 0; i < CORE_NUM; i++){
     for (int j = 0; j < (N_per_core / 2); j++){
       int *data_ptr = data + i * N_per_core;
       int *temp_ptr = temp + i * N_per_core;
@@ -114,7 +114,7 @@ void rearrange_from_aie_order(int *data, int32_t logN, int32_t logN_per_core)
 
 int main(int argc, const char *argv[])
 {
-  int32_t calc_temp = (modulo_q - 1) / (ntt_size);
+  int32_t calc_temp = (modulo_q - 1) / N;
   int32_t calc_temp_2 = 1;
 
   for (int j = 0; j < calc_temp; j++)
@@ -144,8 +144,8 @@ int main(int argc, const char *argv[])
   int trace_size = vm["trace_sz"].as<int>();
 
   constexpr bool VERIFY = true;
-  constexpr int IN_SIZE = all_size;
-  constexpr int IN_FACTOR_SIZE = factor_single_size * col_num;
+  constexpr int IN_SIZE = N;
+  constexpr int IN_FACTOR_SIZE = FACTOR_SIZE_PER_CORE * COL_NUM;
   constexpr int OUT_SIZE = IN_SIZE;
   int OUT_SIZE_bit = IN_SIZE * sizeof(int) + trace_size;
   std::cout << "IN_SIZE : " << IN_SIZE << "\n";
@@ -227,8 +227,8 @@ int main(int argc, const char *argv[])
   // Compute reference for verification
   // ===================================
   initialize_a(bufInA_reference, IN_SIZE);
-  vector_bit_reverse(bufInA_reference, all_size_log);
-  ntt_cpu(bufInA_reference, all_size_log, w_ori, modulo_q, false, n_stage_for_debug);
+  vector_bit_reverse(bufInA_reference, N_LOG);
+  ntt_cpu(bufInA_reference, N_LOG, w_ori, modulo_q, false, n_stage_for_debug);
 
   for (unsigned iter = 0; iter < n_iterations; iter++)
   {
@@ -238,15 +238,15 @@ int main(int argc, const char *argv[])
     // ===================================
     // Input data
     initialize_a(bufInA, IN_SIZE);
-    vector_bit_reverse_and_separate(bufInA, all_size_log, size_per_core_log);
+    vector_bit_reverse_and_separate(bufInA, N_LOG, N_LOG_PER_CORE);
 
     // Twiddle factors
-    initialize_twfactor(bufInFactor, IN_FACTOR_SIZE, w_ori);
+    initialize_twfactor(bufInFactor, IN_FACTOR_SIZE, modulo_q, w_ori);
     if (verbosity >= 2) {
-      for (int i = 0; i < core_num; i++) {
+      for (int i = 0; i < CORE_NUM; i++) {
         std::cout << "Core " << i << " Twiddle factors: ";
-        for (int j = 0; j < factor_single_size; j++) {
-          std::cout << bufInFactor[i * factor_single_size + j] << " ";
+        for (int j = 0; j < FACTOR_SIZE_PER_CORE; j++) {
+          std::cout << bufInFactor[i * FACTOR_SIZE_PER_CORE + j] << " ";
         }
         std::cout << "\n";
       }
@@ -280,7 +280,7 @@ int main(int argc, const char *argv[])
     bo_outE.sync(XCL_BO_SYNC_BO_FROM_DEVICE);
     
     // Rearrange output data to normal order
-    rearrange_from_aie_order(bufOutE, all_size_log, size_per_core_log);
+    rearrange_from_aie_order(bufOutE, N_LOG, N_LOG_PER_CORE);
 
     // ===================================
     // Verify
@@ -294,12 +294,12 @@ int main(int argc, const char *argv[])
 
       int32_t miss_cnt = 0;
       int32_t core_count_index = 0;
-      int32_t tile_size = all_size / (col_num * raw_num);
+      int32_t tile_size = N / (COL_NUM * RAW_NUM);
 
 
       // Open output file
       std::ofstream outfile("output.txt", std::ios::trunc);
-      outfile << " N = " << all_size << "\n";
+      outfile << " N = " << N << "\n";
 
       for (int i = 0; i < IN_SIZE; i++)
       {

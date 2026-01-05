@@ -376,7 +376,6 @@ extern "C"
       aie::store_v(BF_index_out_2, sub);
       
       if (if_debug == 1){
-        // aie::store_v(BF_index_out_1, factor_vec);
         // aie::store_v(BF_index_out_2, factor_vec);
       }
       

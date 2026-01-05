@@ -32,7 +32,6 @@ def my_vector_scalar(opts):
     # ===================================
     # Change here for different configurations
     all_size_log = 16
-    modulo_q = 65537
     # ===================================
     
 
@@ -47,11 +46,9 @@ def my_vector_scalar(opts):
     raw_num = 1<<raw_num_log
     all_size = 1<<all_size_log
     factor_buff_size = 1<<size_per_vec_log
-    factor_FIFO_size = all_size_log
+    factor_FIFO_size = all_size_log + 3  # +3 for barrett_w and barrett_u
     cores_num = 1<<cores_num_log
     cores_size = 1<<size_per_core_log
-    barret_w = 17
-    barret_u = (1<<(2 * barret_w)) // modulo_q
     
 
     @device(AIEDevice.npu1)
@@ -224,10 +221,7 @@ def my_vector_scalar(opts):
                 def core_body():
                     for _ in range_(sys.maxsize):
                         core_index = col * raw_num + raw
-
-
-
-                        
+                                                
                         # =====================================
                         # Copy input to local memory of ComputeTile
                         # =====================================
@@ -239,6 +233,13 @@ def my_vector_scalar(opts):
 
                         factor_FIFO_buff = Mem_CT_factor_FIFO_ls[col].acquire(ObjectFifoPort.Consume, 1)
                         factor_buff = factor_buff_ls[col][raw]
+                        
+                        # =====================================
+                        # Prepare parameters
+                        # =====================================
+                        modulo_q = factor_FIFO_buff[all_size_log]
+                        barret_w = factor_FIFO_buff[all_size_log + 1]
+                        barret_u = factor_FIFO_buff[all_size_log + 2]
 
                         # =====================================
                         # Start NTT

@@ -5,4 +5,3 @@ int power(int base, int exp, int mod);
 
 int bit_reverse(int x, int logN);
 void vector_bit_reverse(int *data, int logN);
-void vector_bit_reverse_and_separate(int *data, int logN, int logN_per_core);

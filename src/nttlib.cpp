@@ -52,33 +52,6 @@ void vector_bit_reverse(int *data, int logN)
     return;
 }
 
-// Bitreverse and separate odd-even bits
-// Excmple:
-// input: [0, 1, 2, 3, 4, 5, 6, 7]
-// bit-reverse: [0, 4, 2, 6, 1, 5, 3, 7]
-// separate odd-even bits: [0, 2, 1, 3, 4, 6, 5, 7]
-void vector_bit_reverse_and_separate(int *data, int logN, int logN_per_core)
-{
-    int N = 1 << logN;
-    int32_t single_size = 1 << logN_per_core;
-    int32_t *temp_ls = new int32_t[N];
-    for (int i = 0; i < N; i++)
-    {
-        temp_ls[i] = data[i];
-    }
-    for (int i = 0; i < N; ++i)
-    {
-        int reversed_index = bit_reverse(i, logN);
-        int32_t odd_even_bit = (reversed_index >> (0)) & 1;
-        int32_t idx_block = reversed_index / single_size;
-        int32_t idx_in_block = reversed_index % single_size;
-        int32_t new_index = ((idx_in_block - odd_even_bit) >> 1) + (odd_even_bit * (1 << (logN_per_core - 1))) + idx_block * single_size;
-        data[new_index] = temp_ls[i];
-    }
-
-    delete[] temp_ls;
-}
-
 int mod_mul(int a, int b, int mod)
 {
     return ((uint64_t)a * b) % mod;

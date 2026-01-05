@@ -18,22 +18,21 @@ from aie.dialects.aiex import *
 from aie.helpers.dialects.ext.scf import _for as range_
 from aie.extras.context import mlir_mod_ctx
 
+# ===================================
+# Change here for different configurations
+all_size_log = 16
+# ===================================
+
 DEBUG_ON = 1
 DEBUG_OFF = 0
 STORE_FACTOR = 1
-NO_STORE_FACTOR = 0
+NO_STORE_FACTOR = 0    
 
 def my_vector_scalar(opts):
 
     # enableTrace = opts.trace_size > 0
     enableTrace = False
     trace_size = opts.trace_size
-
-    # ===================================
-    # Change here for different configurations
-    all_size_log = 16
-    # ===================================
-    
 
     col_num_log = 2
     raw_num_log = 2

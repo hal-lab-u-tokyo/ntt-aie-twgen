@@ -27,7 +27,7 @@
 // ===================================
 const int32_t N_LOG = 16;
 const int32_t modulo_q = 65537;
-const int32_t r = 3;
+const int32_t w_root = 3;
 const int n_stage_for_debug = N_LOG; // 1-origin stage index
 // ===================================
 
@@ -53,7 +53,7 @@ void initialize_a(int *a, int32_t size)
 // Output buffer consists of `COL_NUM` loops of `FACTOR_SIZE_PER_CORE` twiddle factors
 // Each `FACTOR_SIZE_PER_CORE` buffer is:
 // [w, w^2, w^4, w^8, ..., w^(2^(N_LOG-1)), modulus, barrett_w, barrett_u]
-void initialize_twfactor(int *buff, int32_t size, int32_t mod, int32_t w_ori)
+void initialize_twfactor(int *buff, int32_t size, int32_t mod, int32_t root)
 {
   assert(size == FACTOR_SIZE_PER_CORE * COL_NUM);
   for (int core = 0; core < CORE_NUM; core++){
@@ -61,7 +61,7 @@ void initialize_twfactor(int *buff, int32_t size, int32_t mod, int32_t w_ori)
         int w_temp = 1;
         int w_index = 1 << (i);
         for (int j = 0; j < w_index; j++){
-          w_temp = (w_temp * w_ori) % mod;
+          w_temp = (w_temp * root) % mod;
         }
         buff[i + FACTOR_SIZE_PER_CORE * core] = w_temp;
     }
@@ -71,6 +71,33 @@ void initialize_twfactor(int *buff, int32_t size, int32_t mod, int32_t w_ori)
     buff[FACTOR_SIZE_PER_CORE * core + N_LOG + 1] = barrett_w;
     buff[FACTOR_SIZE_PER_CORE * core + N_LOG + 2] = barrett_u;
   }
+}
+
+// Bitreverse and separate odd-even bits
+// Excmple:
+// input: [0, 1, 2, 3, 4, 5, 6, 7]
+// bit-reverse: [0, 4, 2, 6, 1, 5, 3, 7]
+// separate odd-even bits: [0, 2, 1, 3, 4, 6, 5, 7]
+void rearrange_to_aie_order(int *data, int logN, int logN_per_core)
+{
+    int N = 1 << logN;
+    int32_t single_size = 1 << logN_per_core;
+    int32_t *temp_ls = new int32_t[N];
+    for (int i = 0; i < N; i++)
+    {
+        temp_ls[i] = data[i];
+    }
+    for (int i = 0; i < N; ++i)
+    {
+        int reversed_index = bit_reverse(i, logN);
+        int32_t odd_even_bit = (reversed_index >> (0)) & 1;
+        int32_t idx_block = reversed_index / single_size;
+        int32_t idx_in_block = reversed_index % single_size;
+        int32_t new_index = ((idx_in_block - odd_even_bit) >> 1) + (odd_even_bit * (1 << (logN_per_core - 1))) + idx_block * single_size;
+        data[new_index] = temp_ls[i];
+    }
+
+    delete[] temp_ls;
 }
 
 // Rearrange data from AIE's output order to normal order
@@ -114,18 +141,6 @@ void rearrange_from_aie_order(int *data, int32_t logN, int32_t logN_per_core)
 
 int main(int argc, const char *argv[])
 {
-  int32_t calc_temp = (modulo_q - 1) / N;
-  int32_t calc_temp_2 = 1;
-
-  for (int j = 0; j < calc_temp; j++)
-  {
-    uint64_t ttt = calc_temp_2 * r;
-    ttt = ttt % modulo_q;
-    calc_temp_2 = ttt;
-  }
-  int32_t w_ori = calc_temp_2;
-  std::cout << "w_ori : " << w_ori << "\n";
-
   // ===================================
   // Program arguments parsing
   // ===================================
@@ -228,7 +243,7 @@ int main(int argc, const char *argv[])
   // ===================================
   initialize_a(bufInA_reference, IN_SIZE);
   vector_bit_reverse(bufInA_reference, N_LOG);
-  ntt_cpu(bufInA_reference, N_LOG, w_ori, modulo_q, false, n_stage_for_debug);
+  ntt_cpu(bufInA_reference, N_LOG, w_root, modulo_q, false, n_stage_for_debug);
 
   for (unsigned iter = 0; iter < n_iterations; iter++)
   {
@@ -238,10 +253,10 @@ int main(int argc, const char *argv[])
     // ===================================
     // Input data
     initialize_a(bufInA, IN_SIZE);
-    vector_bit_reverse_and_separate(bufInA, N_LOG, N_LOG_PER_CORE);
+    rearrange_to_aie_order(bufInA, N_LOG, N_LOG_PER_CORE);
 
     // Twiddle factors
-    initialize_twfactor(bufInFactor, IN_FACTOR_SIZE, modulo_q, w_ori);
+    initialize_twfactor(bufInFactor, IN_FACTOR_SIZE, modulo_q, w_root);
     if (verbosity >= 2) {
       for (int i = 0; i < CORE_NUM; i++) {
         std::cout << "Core " << i << " Twiddle factors: ";

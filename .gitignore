@@ -6,3 +6,5 @@ _build/
 *.log
 *.txt
 *.bashrc
+!CMakeLists.txt
+.vscode/

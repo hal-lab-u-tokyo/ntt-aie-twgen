@@ -186,13 +186,13 @@ inline void divided_ntt_inplace_internal(int *ls, int step, int all_len, int W, 
     }
 }
 
-void divided_ntt_inplace(std::vector<int> &data, int logN, int W, int MOD, int stage_limit, bool inverse)
+void divided_ntt_inplace(int *data, int logN, int W, int MOD, int stage_limit, bool inverse)
 {
     int n = 1 << logN;
     int m = logN;
 
     // bit-reverse
-    vector_bit_reverse(data.data(), logN);
+    vector_bit_reverse(data, logN);
 
     int current_W = W;
     if (inverse)
@@ -206,14 +206,17 @@ void divided_ntt_inplace(std::vector<int> &data, int logN, int W, int MOD, int s
         stage_limit = stage_remain;
     }
 
-    std::vector<int> new_res;
+    int *new_res = new int[n];
     while (stage_remain > 0)
     {
         int stage_do = std::min(stage_limit, stage_remain);
         int step = 1 << stage_do;
         int stage_will_remain = stage_remain - stage_do;
 
-        new_res = data;
+        for (int i = 0; i < n; ++i)
+        {
+            new_res[i] = data[i];
+        }
 
         for (int l = 0; l < n / step; ++l)
         {
@@ -223,7 +226,7 @@ void divided_ntt_inplace(std::vector<int> &data, int logN, int W, int MOD, int s
             int t = ((int)start >> stage_remain) << stage_will_remain;
             int w_offset_pow = t;
 
-            divided_ntt_inplace_internal(new_res.data() + start, step, n, current_W, MOD, stage_do, w_offset_pow);
+            divided_ntt_inplace_internal(new_res + start, step, n, current_W, MOD, stage_do, w_offset_pow);
         }
 
         for (int i = 0; i < n; ++i)
@@ -237,9 +240,9 @@ void divided_ntt_inplace(std::vector<int> &data, int logN, int W, int MOD, int s
     if (inverse)
     {
         int inv_n = modInverse(n, MOD);
-        for (int &r : data)
+        for (int i = 0; i < n; ++i)
         {
-            r = mod_mul(r, inv_n, MOD);
+            data[i] = mod_mul(data[i], inv_n, MOD);
         }
     }
     return;

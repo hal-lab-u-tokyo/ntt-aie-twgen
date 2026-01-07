@@ -1,0 +1,394 @@
+//===- test.cpp -------------------------------------------------*- C++ -*-===//
+//
+// This file is licensed under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+// Copyright (C) 2023, Advanced Micro Devices, Inc.
+//
+//===----------------------------------------------------------------------===//
+
+#include <cassert>
+#include <cmath>
+#include <cstdint>
+#include <fstream>
+#include <iostream>
+#include <sstream>
+#include <bitset>
+
+#include "../nttlib.h"
+#include "test_utils.h"
+#include "xrt/xrt_bo.h"
+#include "xrt/xrt_device.h"
+#include "xrt/xrt_kernel.h"
+
+// ===================================
+// Change here for different configurations
+// ===================================
+const int32_t N_LOG = 16;
+const int32_t modulo_q = 65537;
+const int32_t w_root = 3;
+const int n_stage_for_debug = N_LOG; // 1-origin stage index
+// ===================================
+
+const int32_t N = 1 << N_LOG;
+const int32_t COL_NUM_LOG = 2;
+const int32_t COL_NUM = 1 << COL_NUM_LOG;
+const int32_t RAW_NUM_LOG = 2;
+const int32_t RAW_NUM = 1 << RAW_NUM_LOG;
+const int32_t CORE_NUM_LOG = COL_NUM_LOG + RAW_NUM_LOG;
+const int32_t CORE_NUM = COL_NUM * RAW_NUM;
+const int32_t FACTOR_SIZE_PER_CORE = N_LOG + 3;
+const int32_t N_LOG_PER_CORE = N_LOG - CORE_NUM_LOG;
+
+void initialize_a(int *a, int32_t size)
+{
+  for (int32_t i = 0; i < size; i++)
+  {
+    a[i] = i;
+  }
+}
+
+// Initialize twiddle factors for all columns
+// Output buffer consists of `COL_NUM` loops of `FACTOR_SIZE_PER_CORE` twiddle factors
+// Each `FACTOR_SIZE_PER_CORE` buffer is:
+// [w, w^2, w^4, w^8, ..., w^(2^(N_LOG-1)), modulus, barrett_w, barrett_u]
+void initialize_twfactor(int *buff, int32_t size, int32_t mod, int32_t root)
+{
+  assert(size == FACTOR_SIZE_PER_CORE * COL_NUM);
+  for (int core = 0; core < CORE_NUM; core++){
+    for (int i = 0; i < N_LOG; i++){
+        int w_temp = 1;
+        int w_index = 1 << (i);
+        for (int j = 0; j < w_index; j++){
+          w_temp = (w_temp * root) % mod;
+        }
+        buff[i + FACTOR_SIZE_PER_CORE * core] = w_temp;
+    }
+    int barrett_w = std::ceil(std::log2(mod));
+    int barrett_u = ((int64_t)1<<(2 * barrett_w)) / mod;
+    buff[FACTOR_SIZE_PER_CORE * core + N_LOG] = mod;
+    buff[FACTOR_SIZE_PER_CORE * core + N_LOG + 1] = barrett_w;
+    buff[FACTOR_SIZE_PER_CORE * core + N_LOG + 2] = barrett_u;
+  }
+}
+
+// Bitreverse and separate odd-even bits
+// Excmple:
+// input: [0, 1, 2, 3, 4, 5, 6, 7]
+// bit-reverse: [0, 4, 2, 6, 1, 5, 3, 7]
+// separate odd-even bits: [0, 2, 1, 3, 4, 6, 5, 7]
+void rearrange_to_aie_order(int *data, int logN, int logN_per_core)
+{
+    int N = 1 << logN;
+    int32_t single_size = 1 << logN_per_core;
+    int32_t *temp_ls = new int32_t[N];
+    for (int i = 0; i < N; i++)
+    {
+        temp_ls[i] = data[i];
+    }
+    for (int i = 0; i < N; ++i)
+    {
+        int reversed_index = bit_reverse(i, logN);
+        int32_t odd_even_bit = (reversed_index >> (0)) & 1;
+        int32_t idx_block = reversed_index / single_size;
+        int32_t idx_in_block = reversed_index % single_size;
+        int32_t new_index = ((idx_in_block - odd_even_bit) >> 1) + (odd_even_bit * (1 << (logN_per_core - 1))) + idx_block * single_size;
+        data[new_index] = temp_ls[i];
+    }
+
+    delete[] temp_ls;
+}
+
+// Rearrange data from AIE's output order to normal order
+void rearrange_from_aie_order(int *data, int32_t logN, int32_t logN_per_core)
+{
+  int N = 1 << logN;
+  int N_per_core = 1 << logN_per_core;
+  int *temp = new int[N];
+  
+  // ===================
+  // Inter tile order
+  // ===================
+  // Change core order
+  std::vector<int> aie_order = {0, 2, 1, 3, 8, 10, 9, 11, 4, 6, 5, 7, 12, 14, 13, 15};
+  for (int i = 0; i < CORE_NUM; i++){
+    int aie_order_index = aie_order[i];
+    int *temp_ptr = temp + i * N_per_core;
+    int *aie_ptr = data + aie_order_index * N_per_core;
+    for (int j = 0; j < N_per_core; j++){
+      temp_ptr[j] = aie_ptr[j];
+    }
+  }
+
+
+  // ===================
+  // Inner tile order
+  // ===================
+  // Reverse order in each tile
+  // CPU: [0, 1, 2, 3, 4, 5, 6, 7]
+  // AIE: [0, 2, 4, 6, 1, 3, 5, 7]
+  for (int i = 0; i < CORE_NUM; i++){
+    for (int j = 0; j < (N_per_core / 2); j++){
+      int *data_ptr = data + i * N_per_core;
+      int *temp_ptr = temp + i * N_per_core;
+      data_ptr[2 * j] = temp_ptr[j];
+      data_ptr[2 * j + 1] = temp_ptr[(N_per_core / 2) + j];
+    }
+  }
+  delete[] temp;
+}
+
+int main(int argc, const char *argv[])
+{
+  // ===================================
+  // Program arguments parsing
+  // ===================================
+  // po::options_description desc("Allowed options");
+  // po::variables_map vm;
+  // test_utils::add_default_options(desc);
+  cxxopts::Options options("Vector Exp Test");
+  cxxopts::ParseResult vm;
+  test_utils::add_default_options(options);
+  test_utils::parse_options(argc, argv, options, vm);
+
+  // test_utils::parse_options(argc, argv, desc, vm);
+  int verbosity = vm["verbosity"].as<int>();
+  int do_verify = vm["verify"].as<bool>();
+  int n_iterations = vm["iters"].as<int>();
+  int trace_size = vm["trace_sz"].as<int>();
+
+  constexpr bool VERIFY = true;
+  constexpr int IN_SIZE = N;
+  constexpr int IN_FACTOR_SIZE = FACTOR_SIZE_PER_CORE * COL_NUM;
+  constexpr int OUT_SIZE = IN_SIZE;
+  int OUT_SIZE_bit = IN_SIZE * sizeof(int) + trace_size;
+  std::cout << "IN_SIZE : " << IN_SIZE << "\n";
+  std::cout << "IN_SIZE_factor : " << IN_FACTOR_SIZE << "\n";
+  std::cout << "OUT_SIZE : " << OUT_SIZE << "\n";
+  std::cout << "TRACE_SIZE : " << trace_size << "\n";
+
+  // ===================================
+  // Start the XRT context and load the kernel 
+  // ===================================
+  // Load instruction sequence
+  std::vector<uint32_t> instr_v =
+      test_utils::load_instr_binary(vm["instr"].as<std::string>());
+
+  // Start the XRT context and load the kernel
+  // Get a device handle
+  unsigned int device_index = 0;
+  auto device = xrt::device(device_index);
+  
+  // Load and register the xclbin
+  auto xclbin = xrt::xclbin(vm["xclbin"].as<std::string>());
+  device.register_xclbin(xclbin);
+
+  // Load the kernel
+  std::string Node = vm["kernel"].as<std::string>();
+  auto xkernels = xclbin.get_kernels();
+  auto xkernel = *std::find_if(xkernels.begin(), xkernels.end(),
+                               [Node, verbosity](xrt::xclbin::kernel &k)
+                               {
+                                 auto name = k.get_name();
+                                 if (verbosity >= 1)
+                                 {
+                                   std::cout << "Name: " << name << std::endl;
+                                 }
+                                 return name.rfind(Node, 0) == 0;
+                               });
+  auto kernelName = xkernel.get_name();
+
+  // Get a hardware context
+  xrt::hw_context context(device, xclbin.get_uuid());
+
+  // Get a kernel handle
+  auto kernel = xrt::kernel(context, kernelName);
+
+  // ===================================
+  // Set up the buffer objects
+  // ===================================
+  auto bo_instr = xrt::bo(device, instr_v.size() * sizeof(int),
+                          XCL_BO_FLAGS_CACHEABLE, kernel.group_id(1));
+  auto bo_inA = xrt::bo(device, IN_SIZE * sizeof(int),
+                        XRT_BO_FLAGS_HOST_ONLY, kernel.group_id(3));
+
+  auto bo_in_factor = xrt::bo(device, IN_FACTOR_SIZE * sizeof(int),
+                              XRT_BO_FLAGS_HOST_ONLY, kernel.group_id(4));
+
+  auto bo_outE = xrt::bo(device, OUT_SIZE_bit,
+                         XRT_BO_FLAGS_HOST_ONLY, kernel.group_id(5));
+  int *bufInA = bo_inA.map<int *>();
+  int *bufInA_reference = new int[IN_SIZE];
+  int *bufInFactor = bo_in_factor.map<int *>();
+  int *bufOutE = bo_outE.map<int *>();
+
+  // Copy instruction stream to xrt buffer object
+  // and sync host to device memories
+  void *bufInstr = bo_instr.map<void *>();
+  memcpy(bufInstr, instr_v.data(), instr_v.size() * sizeof(int));
+  bo_instr.sync(XCL_BO_SYNC_BO_TO_DEVICE);
+  
+  
+  // ===================================
+  // Main run loop
+  // ===================================
+  float npu_time_total = 0;
+  float npu_time_first = 0;
+
+  int errors = 0;
+
+  // ===================================
+  // Compute reference for verification
+  // ===================================
+  const int stage_limit = (N_LOG + 1) / 2;
+  initialize_a(bufInA_reference, IN_SIZE);
+  divided_ntt_inplace(bufInA_reference, N_LOG, w_root, modulo_q, stage_limit, false);
+
+
+  for (unsigned iter = 0; iter < n_iterations; iter++)
+  {
+
+    // ===================================
+    // Initialize input data for each iteration
+    // ===================================
+    // Input data
+    initialize_a(bufInA, IN_SIZE);
+    rearrange_to_aie_order(bufInA, N_LOG, N_LOG_PER_CORE);
+
+    // Twiddle factors
+    initialize_twfactor(bufInFactor, IN_FACTOR_SIZE, modulo_q, w_root);
+    if (verbosity >= 2) {
+      for (int i = 0; i < CORE_NUM; i++) {
+        std::cout << "Core " << i << " Twiddle factors: ";
+        for (int j = 0; j < FACTOR_SIZE_PER_CORE; j++) {
+          std::cout << bufInFactor[i * FACTOR_SIZE_PER_CORE + j] << " ";
+        }
+        std::cout << "\n";
+      }
+    }
+
+    // Clear output buffer
+    memset(bufOutE, 0, OUT_SIZE * sizeof(int));
+
+    // Sync host to device memories
+    bo_inA.sync(XCL_BO_SYNC_BO_TO_DEVICE);
+    bo_in_factor.sync(XCL_BO_SYNC_BO_TO_DEVICE);
+    bo_outE.sync(XCL_BO_SYNC_BO_TO_DEVICE);
+
+
+    // ===================================
+    // Run kernel
+    // ===================================
+    std::cout << "====================\n";
+    if (verbosity >= 1)
+    {
+      std::cout << "Running Kernel.\n";
+    }
+    auto start = std::chrono::high_resolution_clock::now();
+    unsigned int opcode = 3;
+    // auto run =
+    //     kernel(opcode, bo_instr, instr_v.size(), bo_inA, bo_in_factor, bo_outE);
+    // run.wait();
+    auto stop = std::chrono::high_resolution_clock::now();
+
+    // Sync device to host memories
+    bo_outE.sync(XCL_BO_SYNC_BO_FROM_DEVICE);
+    
+    // Rearrange output data to normal order
+    rearrange_from_aie_order(bufOutE, N_LOG, N_LOG_PER_CORE);
+
+    // ===================================
+    // Verify
+    // ===================================
+    if (do_verify)
+    {
+      if (verbosity >= 1)
+      {
+        std::cout << "Verifying results ..." << std::endl;
+      }
+
+      int32_t miss_cnt = 0;
+      int32_t core_count_index = 0;
+      int32_t tile_size = N / (COL_NUM * RAW_NUM);
+
+
+      // Open output file
+      std::ofstream outfile("output.txt", std::ios::trunc);
+      outfile << " N = " << N << "\n";
+
+      for (int i = 0; i < IN_SIZE; i++)
+      {
+        // Output results to file `output.txt`
+        if ((i % tile_size) == 0)
+        {
+          outfile << "\n"
+                  << "core : " << core_count_index << "\n";
+          outfile << "\n========================================" << "\n";
+          core_count_index += 1;
+        }
+
+        int32_t expected = bufInA_reference[i];
+        int32_t output = bufOutE[i];
+
+        outfile << "index : " << i << " , correct : " << expected << ", output:" << output;
+        if (output != expected)
+        {
+          miss_cnt += 1;
+          outfile << "  <-- MISMATCH!";
+        }
+        outfile << "\n";
+      }
+      
+      if (miss_cnt == 0)
+      {
+        std::cout << "PASSED: All results match reference.\n";
+      }
+      else
+      {
+        std::cout << "FAILED: results did not match reference. "
+                  << miss_cnt << " mismatches found.\n";
+      }
+    }
+    else
+    {
+      if (verbosity >= 1)
+        std::cout << "WARNING: results not verified." << std::endl;
+    }
+
+    // ===================================
+    // Write trace values
+    // ===================================
+    if (trace_size > 0)
+    {
+      test_utils::write_out_trace(((char *)bufOutE) + IN_SIZE, trace_size,
+                                  vm["trace_file"].as<std::string>());
+    }
+
+    // ===================================
+    // Accumulate run times
+    // ===================================
+    float npu_time =
+        std::chrono::duration_cast<std::chrono::microseconds>(stop - start)
+            .count();
+    
+    if (iter == 0) {
+      npu_time_first = npu_time;
+    } else {
+      npu_time_total += npu_time;
+    }
+  }
+
+  // ===================================
+  // Print timing results
+  // ===================================
+  std::cout << "====================\n";
+  std::cout << "First NPU time: " << npu_time_first << " [us]" << std::endl;
+
+  if (n_iterations > 1) {
+    std::cout << "Average NPU time over " << n_iterations - 1
+              << " iterations: "
+              << npu_time_total / (n_iterations - 1) << " [us]" << std::endl;
+  } 
+}
+

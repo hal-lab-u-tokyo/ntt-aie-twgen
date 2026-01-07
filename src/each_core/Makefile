@@ -1,0 +1,55 @@
+##===- Makefile -----------------------------------------------------------===##
+# 
+# This file licensed under the Apache License v2.0 with LLVM Exceptions.
+# See https://llvm.org/LICENSE.txt for license information.
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+# 
+##===----------------------------------------------------------------------===##
+
+srcdir := $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
+
+include ${srcdir}/../makefile-common
+aie2_runtime_dir = ${MLIR_AIE_DIR}/aie_runtime_lib/AIE2
+
+all: build/final.xclbin
+
+targetname = ntt
+
+trace_size = 8192
+
+build/aie.mlir: ${srcdir}/aie2.py
+	mkdir -p ${@D}
+	python3 $< > $@
+
+build/aie_trace.mlir: ${srcdir}/aie2.py
+	mkdir -p ${@D}
+	python3 $< -t ${trace_size} > $@
+
+build/func.o: ${srcdir}/func.cc
+	mkdir -p ${@D}
+	cd build && ${PEANO_INSTALL_DIR}/bin/clang++ ${PEANOWRAP2_FLAGS} -I${aie2_runtime_dir} -c $< -o ${@F}
+
+build/final.xclbin: build/aie.mlir build/func.o
+	mkdir -p ${@D}
+	cd build &&	aiecc.py --aie-generate-xclbin --no-compile-host --xclbin-name=${@F} \
+				--no-xchesscc --no-xbridge --peano ${PEANO_INSTALL_DIR} \
+				--aie-generate-npu-insts --npu-insts-name=insts.bin $(<:%=../%)
+
+${targetname}.exe: ${srcdir}/test.cpp ../nttlib.cpp
+	rm -rf _build
+	mkdir -p _build
+	cd _build && ${powershell} cmake -E env CXXFLAGS="-std=c++23 -ggdb" cmake ${srcdir} -D CMAKE_C_COMPILER=gcc-13 -D CMAKE_CXX_COMPILER=g++-13 -DTARGET_NAME=${targetname} 
+	cd _build && ${powershell} cmake --build . --config Release
+	cp _build/${targetname} $@ 
+
+run: ${targetname}.exe build/final.xclbin 
+	${powershell} ./$< -x build/final.xclbin -i build/insts.bin -k MLIR_AIE
+
+run-v: ${targetname}.exe build/final.xclbin 
+	${powershell} ./$< -x build/final.xclbin -i build/insts.bin -k MLIR_AIE -v 1
+
+run-10: ${targetname}.exe build/final.xclbin
+	${powershell} ./$< -x build/final.xclbin -i build/insts.bin -k MLIR_AIE --iters 10 -v 1
+
+clean:
+	rm -rf build _build ${targetname}.exe

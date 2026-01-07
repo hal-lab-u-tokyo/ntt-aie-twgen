@@ -25,6 +25,20 @@ bool are_vectors_equal(const vector<T> &a, const vector<T> &b)
     return err == 0;
 }
 
+template <typename T>
+bool are_arrays_equal(const T *a, const T *b, size_t size)
+{
+    for (size_t i = 0; i < size; i++)
+    {
+        if (a[i] != b[i])
+        {
+            cout << "Mismatch at index " << i << ": " << a[i] << " != " << b[i] << endl;
+            return false;
+        }
+    }
+    return true;
+}
+
 int main()
 {
     // Set up parameters
@@ -43,8 +57,8 @@ int main()
     uniform_int_distribution<int> distrib(0, (1LL << 10) - 1);
 
     // Initialize input data
-    vector<int> a(N);
-    vector<int> a_ref(N);
+    int a[N];
+    int a_ref[N];
     for (int i = 0; i < N; ++i)
     {
         a[i] = distrib(gen) % MOD;
@@ -62,7 +76,7 @@ int main()
     divided_ntt_inplace(a, logN, w, MOD, stage_limit, true);
 
     // Check results
-    are_vectors_equal(a, a_ref) ? cout << "Divided NTT and inverse NTT successful!" << endl
+    are_arrays_equal(a, a_ref, N) ? cout << "Divided NTT and inverse NTT successful!" << endl
                                  : cout << "Mismatch in Divided NTT results!" << endl;
 
     return 0;

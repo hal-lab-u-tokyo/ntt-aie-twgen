@@ -41,6 +41,15 @@ const int32_t CORE_NUM = COL_NUM * RAW_NUM;
 const int32_t FACTOR_SIZE_PER_CORE = N_LOG + 3;
 const int32_t N_LOG_PER_CORE = N_LOG - CORE_NUM_LOG;
 
+// ===================================
+// Parameters for Divided NTT
+// ===================================
+const int32_t N_LOG_PHASE1 = (N_LOG + 1) / 2;
+const int32_t N_LOG_PHASE2 = N_LOG - N_LOG_PHASE1;
+const int32_t LOOP_PHASE1 = N_LOG_PHASE2 - CORE_NUM_LOG;
+const int32_t LOOP_PHASE2 = N_LOG_PHASE1 - CORE_NUM_LOG;
+
+
 void initialize_a(int *a, int32_t size)
 {
   for (int32_t i = 0; i < size; i++)
@@ -168,6 +177,13 @@ int main(int argc, const char *argv[])
   std::cout << "OUT_SIZE : " << OUT_SIZE << "\n";
   std::cout << "TRACE_SIZE : " << trace_size << "\n";
 
+  std::cout << "N_LOG_PHASE1 : " << N_LOG_PHASE1 << "\n";
+  std::cout << "N_LOG_PHASE2 : " << N_LOG_PHASE2 << "\n";
+  std::cout << "LOOP_PHASE1 : " << LOOP_PHASE1 << "\n";
+  std::cout << "LOOP_PHASE2 : " << LOOP_PHASE2 << "\n";
+  assert(N_LOG_PHASE1 <= 12); // Each core can handle max 4096 points NTT
+  assert(N_LOG_PHASE2 <= 12);
+
   // ===================================
   // Start the XRT context and load the kernel 
   // ===================================
@@ -229,7 +245,6 @@ int main(int argc, const char *argv[])
   memcpy(bufInstr, instr_v.data(), instr_v.size() * sizeof(int));
   bo_instr.sync(XCL_BO_SYNC_BO_TO_DEVICE);
   
-  
   // ===================================
   // Main run loop
   // ===================================
@@ -243,7 +258,7 @@ int main(int argc, const char *argv[])
   // ===================================
   const int stage_limit = (N_LOG + 1) / 2;
   initialize_a(bufInA_reference, IN_SIZE);
-  divided_ntt_inplace(bufInA_reference, N_LOG, w_root, modulo_q, stage_limit, false);
+  // divided_ntt_inplace(bufInA_reference, N_LOG, w_root, modulo_q, stage_limit, false);
 
 
   for (unsigned iter = 0; iter < n_iterations; iter++)
@@ -254,7 +269,7 @@ int main(int argc, const char *argv[])
     // ===================================
     // Input data
     initialize_a(bufInA, IN_SIZE);
-    rearrange_to_aie_order(bufInA, N_LOG, N_LOG_PER_CORE);
+    // rearrange_to_aie_order(bufInA, N_LOG, N_LOG_PER_CORE);
 
     // Twiddle factors
     initialize_twfactor(bufInFactor, IN_FACTOR_SIZE, modulo_q, w_root);
@@ -287,16 +302,16 @@ int main(int argc, const char *argv[])
     }
     auto start = std::chrono::high_resolution_clock::now();
     unsigned int opcode = 3;
-    // auto run =
-    //     kernel(opcode, bo_instr, instr_v.size(), bo_inA, bo_in_factor, bo_outE);
-    // run.wait();
+    auto run =
+        kernel(opcode, bo_instr, instr_v.size(), bo_inA, bo_in_factor, bo_outE);
+    run.wait();
     auto stop = std::chrono::high_resolution_clock::now();
 
     // Sync device to host memories
     bo_outE.sync(XCL_BO_SYNC_BO_FROM_DEVICE);
     
     // Rearrange output data to normal order
-    rearrange_from_aie_order(bufOutE, N_LOG, N_LOG_PER_CORE);
+    // rearrange_from_aie_order(bufOutE, N_LOG, N_LOG_PER_CORE);
 
     // ===================================
     // Verify

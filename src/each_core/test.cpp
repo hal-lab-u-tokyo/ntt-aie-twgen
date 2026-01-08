@@ -61,7 +61,7 @@ void initialize_a(int *a, int32_t size)
 }
 
 // Initialize twiddle factors for all columns
-// Output buffer consists of `COL_NUM` loops of `FACTOR_SIZE_PER_CORE` twiddle factors
+// Output buffer consists of `COL_NUM` loops of `FACTOR_SIZE_PER_CORE` metadatas
 // Each `FACTOR_SIZE_PER_CORE` buffer is:
 // [w, w^2, w^4, w^8, ..., w^(2^(N_LOG-1)), modulus, barrett_w, barrett_u]
 void initialize_metadata(int *buff, int32_t size, int32_t mod, int32_t root, int32_t logn_for_current_ntt)

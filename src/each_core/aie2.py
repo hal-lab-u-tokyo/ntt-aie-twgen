@@ -39,8 +39,7 @@ def divided_ntt_internal(opts):
 
     col_num_log = 2
     raw_num_log = 2
-    size_per_vec_log = 4
-
+    
     cores_num_log = col_num_log+raw_num_log
     size_per_core_log = 10 # FIXED.
     
@@ -52,7 +51,7 @@ def divided_ntt_internal(opts):
     col_num = 1<<col_num_log
     raw_num = 1<<raw_num_log
     all_size = 1<<all_size_log
-    factor_buff_size = 1<<size_per_vec_log
+    factor_buff_size = 16 * 3
     factor_FIFO_size = all_size_log + 4  # +4 for barrett_w, barrett_u, and logn
     cores_num = 1<<cores_num_log
     cores_size = 1<<size_per_core_log
@@ -76,7 +75,7 @@ def divided_ntt_internal(opts):
         # ===================
         multi_NTT_in_a_tile = external_func(
             "multi_NTT_in_a_tile",
-            inputs = [cores_ty,cores_ty,factor_buff_ty,factor_FIFO_ty,np.int32,np.int32,np.int32,np.int32,np.int32],
+            inputs = [cores_ty,cores_ty,factor_buff_ty,factor_FIFO_ty,np.int32,np.int32,np.int32,np.int32,np.int32,np.int32],
         )
         
 
@@ -165,7 +164,7 @@ def divided_ntt_internal(opts):
                             barret_u = factor_FIFO_buff[all_size_log + 2]
                             logn_for_current_ntt = factor_FIFO_buff[all_size_log + 3]
                             
-                            multi_NTT_in_a_tile(in_vec, out_vec, factor_buff, factor_FIFO_buff, block_per_core_log, logn_for_current_ntt, modulo_q, barret_w, barret_u)
+                            multi_NTT_in_a_tile(in_vec, out_vec, factor_buff, factor_FIFO_buff, all_size_log, block_per_core_log, logn_for_current_ntt, modulo_q, barret_w, barret_u)
 
                             
                             # =====================================

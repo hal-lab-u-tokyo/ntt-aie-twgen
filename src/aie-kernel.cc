@@ -384,4 +384,27 @@ extern "C"
     event1();
   }
 
+  // NOTICE: current_ntt_log must be greater than or equal to 6
+  void multi_NTT_in_a_tile(int32_t *buff_in, int32_t *buff_out, int32_t *factor_buff, int32_t *factor_fifo_buff, int all_size_log, int buff_size_log, int current_ntt_log, int32_t modulo_q, int32_t barret_w, int32_t barret_u)
+  {
+    const int loops = 1 << (buff_size_log - current_ntt_log);
+    const int ntt_size = 1 << (current_ntt_log);
+
+    for (int idx_loop = 0; idx_loop < loops; idx_loop++)
+    {
+      const int offset = idx_loop * ntt_size;
+      int32_t *buff_i = buff_in + offset;
+      int32_t *buff_o = buff_out + offset;
+      for (int stage = 1; stage < 6; stage++)
+      {
+        NTT_stage_down(buff_i, buff_i, factor_buff, factor_fifo_buff, stage, all_size_log, current_ntt_log, modulo_q, barret_w, barret_u);
+      }
+      for (int stage = 6; stage < current_ntt_log + 1; stage++)
+      {
+        int32_t *ptr_out = (stage == current_ntt_log) ? buff_o : buff_i;
+        NTT_stage_up(buff_i, ptr_out, factor_buff, factor_fifo_buff, stage, all_size_log, current_ntt_log, modulo_q, barret_w, barret_u);
+      }
+    }
+  }
+
 } // extern "C"

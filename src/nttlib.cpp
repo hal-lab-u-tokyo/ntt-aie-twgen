@@ -154,8 +154,15 @@ inline void divided_ntt_inplace_internal(int *ls, int step, int all_len, int W, 
     int idx_step = 1LL;
 
     int w_offset, ws, half, wi, u, v, term;
+
     for (int s = 0; s < stage_do; ++s)
     {
+        if (debug == true)
+        {
+            printf("---------------------------------------------\n");
+            printf("Divided NTT Internal Stage %d/%d\n", s + 1, stage_do);
+            printf("---------------------------------------------\n");
+        }
         offset_exponent >>= 1;
         w_offset = power(W, offset_exponent, MOD);
 
@@ -180,6 +187,11 @@ inline void divided_ntt_inplace_internal(int *ls, int step, int all_len, int W, 
                 ls[i] = (u + term) % MOD;
                 ls[j] = (u - term % MOD + MOD) % MOD;
 
+                if (debug == true)
+                {
+                    printf("butterfly: ls[%u]=%u, ls[%u]=%u, tw=%u, from u=%u, v=%u\n", i, ls[i], j, ls[j], wi, u, v);
+                }
+
                 wi = mod_mul(wi, ws, MOD);
             }
         }
@@ -194,7 +206,6 @@ void divided_ntt_inplace(int *data, int logN, int W, int MOD, int stage_limit, b
     // bit-reverse
     vector_bit_reverse(data, logN);
 
-    /*
     int current_W = W;
     if (inverse)
     {
@@ -208,6 +219,30 @@ void divided_ntt_inplace(int *data, int logN, int W, int MOD, int stage_limit, b
     }
 
     int *new_res = new int[n];
+    for (int i = 0; i < n; ++i)
+    {
+        new_res[i] = data[i];
+    }
+    int stage_do = 9;
+    int step = 1 << stage_do;
+    int stage_will_remain = stage_remain - stage_do;
+    for (int l = 0; l < n / step; ++l)
+    {
+        int start = l * step;
+        int end = start + step;
+
+        int t = ((int)start >> stage_remain) << stage_will_remain;
+        int w_offset_pow = t;
+
+        // divided_ntt_inplace_internal(new_res + start, step, n, current_W, MOD, stage_do, w_offset_pow);
+        divided_ntt_inplace_internal(new_res + start, step, n, current_W, MOD, stage_do, 0);
+    }
+    for (int i = 0; i < n; ++i)
+    {
+        data[i] = new_res[i];
+    }
+
+    /*
     while (stage_remain > 0)
     {
         int stage_do = std::min(stage_limit, stage_remain);
@@ -237,6 +272,7 @@ void divided_ntt_inplace(int *data, int logN, int W, int MOD, int stage_limit, b
 
         stage_remain = stage_will_remain;
     }
+    */
 
     if (inverse)
     {
@@ -246,6 +282,5 @@ void divided_ntt_inplace(int *data, int logN, int W, int MOD, int stage_limit, b
             data[i] = mod_mul(data[i], inv_n, MOD);
         }
     }
-    */
     return;
 }

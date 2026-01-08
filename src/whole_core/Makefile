@@ -25,11 +25,11 @@ build/aie_trace.mlir: ${srcdir}/aie2.py
 	mkdir -p ${@D}
 	python3 $< -t ${trace_size} > $@
 
-build/func.o: ${srcdir}/func.cc
+build/aie-kernel.o: ${srcdir}/../aie-kernel.cc
 	mkdir -p ${@D}
 	cd build && ${PEANO_INSTALL_DIR}/bin/clang++ ${PEANOWRAP2_FLAGS} -I${aie2_runtime_dir} -c $< -o ${@F}
 
-build/final.xclbin: build/aie.mlir build/func.o
+build/final.xclbin: build/aie.mlir build/aie-kernel.o
 	mkdir -p ${@D}
 	cd build &&	aiecc.py --aie-generate-xclbin --no-compile-host --xclbin-name=${@F} \
 				--no-xchesscc --no-xbridge --peano ${PEANO_INSTALL_DIR} \

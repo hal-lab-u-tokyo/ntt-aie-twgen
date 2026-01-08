@@ -141,7 +141,7 @@ def divided_ntt_internal(opts):
         # ===================
         for col in range(col_num):
             for raw in range(raw_num):
-                @core(CT_tile_ls[col][raw], "func.o")
+                @core(CT_tile_ls[col][raw], "aie-kernel.o")
                 def core_body():
                     for _ in range_(sys.maxsize):
                         core_index = col * raw_num + raw

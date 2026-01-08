@@ -171,6 +171,39 @@ void rearrange_from_aie_order(int *data, int32_t logN, int32_t logN_per_block, b
   delete[] temp;
 }
 
+void rearrange_from_aie_order_and_rotl(int *dst, int *src, int32_t logN, int32_t logN_per_block, int32_t rotation)
+{
+  int N = 1 << logN;
+  int N_per_block = 1 << logN_per_block;
+  int number_of_blocks = N / N_per_block;
+  int *temp = new int[N];
+
+  // ===================
+  // Inner block order
+  // ===================
+  // Reverse order in each block
+  // CPU: [0, 1, 2, 3, 4, 5, 6, 7]
+  // AIE: [0, 2, 4, 6, 1, 3, 5, 7]
+  for (int i = 0; i < number_of_blocks; i++)
+  {
+    int *src_i = src + i * N_per_block;
+    int *temp_i = temp + i * N_per_block;
+    for (int j = 0; j < (N_per_block / 2); j++)
+    {
+      temp_i[2 * j] = src_i[j];
+      temp_i[2 * j + 1] = src_i[(N_per_block / 2) + j];
+    }
+  }
+
+  // rotl
+  for (int i = 0; i < N; i++)
+  {
+    dst[i] = temp[rotl(i, rotation, logN)];
+  }
+
+  delete[] temp;
+}
+
 int main(int argc, const char *argv[])
 {
   // ===================================
@@ -332,9 +365,12 @@ int main(int argc, const char *argv[])
 
     // Sync device to host memories
     bo_outE.sync(XCL_BO_SYNC_BO_FROM_DEVICE);
+
+    // rotation and set new input
+    rearrange_from_aie_order_and_rotl(bufOutE, bufOutE, N_LOG, N_LOG_PHASE1, N_LOG_PHASE1);
     
     // Rearrange output data to normal order
-    rearrange_from_aie_order(bufOutE, N_LOG, N_LOG_PHASE1, true);
+    // rearrange_from_aie_order(bufOutE, N_LOG, N_LOG_PHASE1, true);
 
     // ===================================
     // Verify

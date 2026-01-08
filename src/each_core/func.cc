@@ -128,22 +128,8 @@ extern "C"
   // NTT operations
   // ==================================
 
-  void multi_NTT_in_a_tile(int32_t *buff_in, int32_t *buff_out, int all_size_log, int block_size_log) {
-    const int loops = 1 << (all_size_log - block_size_log);
-    const int block_size = 1 << block_size_log;
-  
-    for (int idx_loop = 0; idx_loop < loops; idx_loop++) {
-      const int offset = idx_loop * block_size;
-      int32_t *buff_i = buff_in + offset;
-      int32_t *buff_o = buff_out + offset;
-      for (int i = 0; i < block_size; i++){
-        buff_o[i] = buff_i[i];
-      }
-    }
-  }
-
   // DIT NTT
-  void NTT_stage_down(int32_t *buff_in, int32_t *buff_out, int32_t *factor_buff, int32_t *factor_fifo_buff, int32_t stage, int32_t all_size_log, int32_t size_per_core_log, int32_t modulo_q, int32_t barret_w, int32_t barret_u)
+  void NTT_stage_down(int32_t *buff_in, int32_t *buff_out, int32_t *factor_buff, int32_t *factor_fifo_buff, int32_t stage, int32_t all_size_log, int32_t size_per_core_log, int32_t modulo_q, int32_t barret_w, int32_t barret_u, bool no_gen_factor)
   {
     event0();
 
@@ -156,25 +142,28 @@ extern "C"
 
     aie::vector<int32_t, vec_prime> factor_vec_stage;
 
-        // On-the-fly compute factor vectors
-        aie::vector<int32_t, vec_prime>
-            factor_vec;
-    if (stage == 1)
-    {
-      factor_vec = aie::broadcast<int32_t, vec_prime>(1);
+    // On-the-fly compute factor vectors
+    aie::vector<int32_t, vec_prime> factor_vec;
+    if (no_gen_factor){
+      factor_vec = aie::load_v<vec_prime>(factor_buff);
+    } else {
+      if (stage == 1)
+      {
+        factor_vec = aie::broadcast<int32_t, vec_prime>(1);
+      }
+      else
+      {
+        aie::vector<int32_t, vec_prime_half> factor_vec_1_half = aie::load_v<vec_prime_half>(factor_buff);
+        factor_vec_1 = aie::load_v<vec_prime>(factor_buff);
+        factor_vec_stage = aie::broadcast<int32_t, vec_prime>(factor_fifo_buff[all_size_log - (stage)]);
+        aie::vector<int32_t, vec_prime_half> factor_vec_stage_half = aie::broadcast<int32_t, vec_prime_half>(factor_fifo_buff[all_size_log - (stage)]);
+        factor_vec_2 = vector_barrett(factor_vec_1, q_vector, factor_vec_stage, u_vector, barret_w);
+        aie::vector<int32_t, vec_prime_half> factor_vec_2_half = vector_barrett_half(factor_vec_1_half, q_vector_half, factor_vec_stage_half, u_vector_half, barret_w);
+        auto [res, res2] = aie::interleave_zip(factor_vec_1_half, factor_vec_2_half, 1);
+        factor_vec = aie::concat(res, res2);
+      }
+      aie::store_v(factor_buff, factor_vec);
     }
-    else
-    {
-      aie::vector<int32_t, vec_prime_half> factor_vec_1_half = aie::load_v<vec_prime_half>(factor_buff);
-      factor_vec_1 = aie::load_v<vec_prime>(factor_buff);
-      factor_vec_stage = aie::broadcast<int32_t, vec_prime>(factor_fifo_buff[all_size_log - (stage)]);
-      aie::vector<int32_t, vec_prime_half> factor_vec_stage_half = aie::broadcast<int32_t, vec_prime_half>(factor_fifo_buff[all_size_log - (stage)]);
-      factor_vec_2 = vector_barrett(factor_vec_1, q_vector, factor_vec_stage, u_vector, barret_w);
-      aie::vector<int32_t, vec_prime_half> factor_vec_2_half = vector_barrett_half(factor_vec_1_half, q_vector_half, factor_vec_stage_half, u_vector_half, barret_w);
-      auto [res, res2] = aie::interleave_zip(factor_vec_1_half, factor_vec_2_half, 1);
-      factor_vec = aie::concat(res, res2);
-    }
-    aie::store_v(factor_buff, factor_vec);
     
     // Compute NTT stage
     int32_t w_stage_cnt = 1 << (all_size_log - (stage - 1));
@@ -396,6 +385,20 @@ extern "C"
       factor_vec = vector_barrett(factor_vec, q_vector, factor_vec_stage_2_full, u_vector, barret_w);
     }
     event1();
+  }
+
+  void multi_NTT_in_a_tile(int32_t *buff_in, int32_t *buff_out, int32_t *factor_buff, int32_t *factor_fifo_buff, int all_size_log, int block_size_log, int32_t modulo_q, int32_t barret_w, int32_t barret_u)
+  {
+    const int loops = 1 << (all_size_log - block_size_log);
+    const int block_size = 1 << block_size_log;
+
+    for (int idx_loop = 0; idx_loop < loops; idx_loop++)
+    {
+      const int offset = idx_loop * block_size;
+      int32_t *buff_i = buff_in + offset;
+      int32_t *buff_o = buff_out + offset;
+      NTT_stage_down(buff_i, buff_o, factor_buff, factor_fifo_buff, 1, all_size_log, block_size_log, modulo_q, barret_w, barret_u, idx_loop==0 ? false : true);
+    }
   }
 
 } // extern "C"

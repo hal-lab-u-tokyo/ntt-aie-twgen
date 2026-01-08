@@ -194,6 +194,7 @@ void divided_ntt_inplace(int *data, int logN, int W, int MOD, int stage_limit, b
     // bit-reverse
     vector_bit_reverse(data, logN);
 
+    /*
     int current_W = W;
     if (inverse)
     {
@@ -245,5 +246,6 @@ void divided_ntt_inplace(int *data, int logN, int W, int MOD, int stage_limit, b
             data[i] = mod_mul(data[i], inv_n, MOD);
         }
     }
+    */
     return;
 }

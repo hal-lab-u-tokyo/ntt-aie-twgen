@@ -74,31 +74,9 @@ def divided_ntt_internal(opts):
         # ===================
         # External Function
         # ===================
-        NTT_stage_down = external_func(
-            "NTT_stage_down",
-            inputs = [cores_ty,cores_ty,factor_buff_ty,factor_FIFO_ty,np.int32,  np.int32,np.int32, np.int32, np.int32,np.int32],
-        )
-        NTT_stage_up = external_func(
-            "NTT_stage_up",
-            inputs = [cores_ty,cores_ty,factor_buff_ty,factor_FIFO_ty,np.int32, np.int32, np.int32,np.int32, np.int32, np.int32],
-        )
-
-        vector_copy = external_func(
-            "vector_copy",
-            inputs = [cores_ty, cores_ty,np.int32],
-            )
-        NTT_stage_next_up_down = external_func(
-            "NTT_stage_next_up_down",
-            inputs = [cores_ty,cores_ty,cores_ty,cores_ty,factor_buff_ty,factor_FIFO_ty,np.int32,np.int32,np.int32, np.int32,np.int32,np.int32, np.int32,np.int32,np.int32,np.int32,np.int32],
-        )
-        swap = external_func(
-            "vector_swap",
-            inputs = [cores_ty,cores_ty,np.int32,np.int32],
-        )
-
         multi_NTT_in_a_tile = external_func(
             "multi_NTT_in_a_tile",
-            inputs = [cores_ty,cores_ty,np.int32,np.int32],
+            inputs = [cores_ty,cores_ty,factor_buff_ty,factor_FIFO_ty,np.int32,np.int32,np.int32,np.int32,np.int32],
         )
         
 
@@ -150,6 +128,14 @@ def divided_ntt_internal(opts):
             object_fifo_link(Shim_Mem_factor_FIFO_ls[col], Mem_CT_factor_FIFO_ls[col],[],[raw * factor_FIFO_size for raw in range(raw_num)])
 
 
+        # ===================
+        # Buffers
+        # ===================
+        factor_buff_ls = []
+        for col in range(col_num):
+            factor_buff_ls.append([])
+            for raw in range(raw_num):
+                factor_buff_ls[col].append( buffer(tile=CT_tile_ls[col][raw], datatype= factor_buff_ty))
 
         # ===================
         # Core Body
@@ -162,6 +148,8 @@ def divided_ntt_internal(opts):
                         core_index = col * raw_num + raw
                                                 
                         factor_FIFO_buff = Mem_CT_factor_FIFO_ls[col].acquire(ObjectFifoPort.Consume, 1)
+                        factor_buff = factor_buff_ls[col][raw]
+                        
                         for _ in range_(loops):
                             # =====================================
                             # Copy input to local memory of ComputeTile
@@ -177,7 +165,7 @@ def divided_ntt_internal(opts):
                             barret_u = factor_FIFO_buff[all_size_log + 2]
                             logn_for_current_ntt = factor_FIFO_buff[all_size_log + 3]
                             
-                            multi_NTT_in_a_tile(in_vec, out_vec, block_per_core_log, logn_for_current_ntt)
+                            multi_NTT_in_a_tile(in_vec, out_vec, factor_buff, factor_FIFO_buff, block_per_core_log, logn_for_current_ntt, modulo_q, barret_w, barret_u)
 
                             
                             # =====================================
@@ -186,18 +174,6 @@ def divided_ntt_internal(opts):
                             Mem_CT_FIFO_ls[col][raw].release(ObjectFifoPort.Consume, 1)
                             CT_Mem_FIFO_ls[col][raw].release(ObjectFifoPort.Produce, 1)
                         Mem_CT_factor_FIFO_ls[col].release(ObjectFifoPort.Consume, 1)                        
-
-                        
-                    """
-                        stage_compute_in_tile = all_size_log - 4
-                        for stage in range(1,6):
-                            NTT_stage_down(buff,buff,factor_buff,factor_FIFO_buff,stage,all_size_log,size_per_core_log,modulo_q,barret_w,barret_u)
-
-                        for stage in range(6, stage_compute_in_tile + 1):
-                            NTT_stage_up(buff,buff,factor_buff,factor_FIFO_buff,stage,all_size_log,size_per_core_log,modulo_q,barret_w,barret_u)
-
-                    """
-
                         
         # ===================
         # Runtime Sequence

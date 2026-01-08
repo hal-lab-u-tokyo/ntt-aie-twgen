@@ -56,7 +56,7 @@ void initialize_a(int *a, int32_t size)
 {
   for (int32_t i = 0; i < size; i++)
   {
-    a[i] = i;
+    a[i] = i % modulo_q;
   }
 }
 

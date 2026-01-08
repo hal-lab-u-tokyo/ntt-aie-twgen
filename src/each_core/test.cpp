@@ -25,7 +25,7 @@
 // ===================================
 // Change here for different configurations
 // ===================================
-const int32_t N_LOG = 16;
+const int32_t N_LOG = 17;
 const int32_t modulo_q = 65537;
 const int32_t w_root = 3;
 const int n_stage_for_debug = N_LOG; // 1-origin stage index
@@ -38,7 +38,7 @@ const int32_t RAW_NUM_LOG = 2;
 const int32_t RAW_NUM = 1 << RAW_NUM_LOG;
 const int32_t CORE_NUM_LOG = COL_NUM_LOG + RAW_NUM_LOG;
 const int32_t CORE_NUM = COL_NUM * RAW_NUM;
-const int32_t FACTOR_SIZE_PER_CORE = N_LOG + 3;
+const int32_t FACTOR_SIZE_PER_CORE = N_LOG + 4;
 const int32_t N_LOG_PER_CORE = N_LOG - CORE_NUM_LOG;
 
 // ===================================
@@ -46,6 +46,8 @@ const int32_t N_LOG_PER_CORE = N_LOG - CORE_NUM_LOG;
 // ===================================
 const int32_t N_LOG_PHASE1 = (N_LOG + 1) / 2;
 const int32_t N_LOG_PHASE2 = N_LOG - N_LOG_PHASE1;
+const int32_t N_PHASE1 = 1 << N_LOG_PHASE1;
+const int32_t N_PHASE2 = 1 << N_LOG_PHASE2;
 const int32_t LOOP_PHASE1 = N_LOG_PHASE2 - CORE_NUM_LOG;
 const int32_t LOOP_PHASE2 = N_LOG_PHASE1 - CORE_NUM_LOG;
 
@@ -62,7 +64,7 @@ void initialize_a(int *a, int32_t size)
 // Output buffer consists of `COL_NUM` loops of `FACTOR_SIZE_PER_CORE` twiddle factors
 // Each `FACTOR_SIZE_PER_CORE` buffer is:
 // [w, w^2, w^4, w^8, ..., w^(2^(N_LOG-1)), modulus, barrett_w, barrett_u]
-void initialize_twfactor(int *buff, int32_t size, int32_t mod, int32_t root)
+void initialize_metadata(int *buff, int32_t size, int32_t mod, int32_t root, int32_t logn_for_current_ntt)
 {
   assert(size == FACTOR_SIZE_PER_CORE * COL_NUM);
   for (int core = 0; core < CORE_NUM; core++){
@@ -79,70 +81,91 @@ void initialize_twfactor(int *buff, int32_t size, int32_t mod, int32_t root)
     buff[FACTOR_SIZE_PER_CORE * core + N_LOG] = mod;
     buff[FACTOR_SIZE_PER_CORE * core + N_LOG + 1] = barrett_w;
     buff[FACTOR_SIZE_PER_CORE * core + N_LOG + 2] = barrett_u;
+    buff[FACTOR_SIZE_PER_CORE * core + N_LOG + 3] = logn_for_current_ntt;
   }
 }
 
 // Bitreverse and separate odd-even bits
-// Excmple:
+// Example:
 // input: [0, 1, 2, 3, 4, 5, 6, 7]
 // bit-reverse: [0, 4, 2, 6, 1, 5, 3, 7]
 // separate odd-even bits: [0, 2, 1, 3, 4, 6, 5, 7]
-void rearrange_to_aie_order(int *data, int logN, int logN_per_core)
+//
+// Arguments:
+// logN: log2 of total data size
+// logN_block: 
+//   - for whole-core NTT: log2 of data size per core, i.e., LOGN - CORE_NUM_LOG
+//   - for each-core NTT: log2 of N for current phase
+void rearrange_to_aie_order(int *data, int logN, int logN_per_block)
 {
-    int N = 1 << logN;
-    int32_t single_size = 1 << logN_per_core;
+    const int N = 1 << logN;
+    const int N_per_block = 1 << logN_per_block;
+    const int number_of_blocks = N / N_per_block;
     int32_t *temp_ls = new int32_t[N];
     for (int i = 0; i < N; i++)
     {
         temp_ls[i] = data[i];
     }
+ 
     for (int i = 0; i < N; ++i)
     {
-        int reversed_index = bit_reverse(i, logN);
-        int32_t odd_even_bit = (reversed_index >> (0)) & 1;
-        int32_t idx_block = reversed_index / single_size;
-        int32_t idx_in_block = reversed_index % single_size;
-        int32_t new_index = ((idx_in_block - odd_even_bit) >> 1) + (odd_even_bit * (1 << (logN_per_core - 1))) + idx_block * single_size;
-        data[new_index] = temp_ls[i];
+      int reversed_index = bit_reverse(i, logN);
+      int32_t odd_even_bit = (reversed_index >> (0)) & 1;
+      int32_t idx_block = reversed_index / N_per_block;
+      int32_t idx_in_block = reversed_index % N_per_block;
+      int32_t new_index = ((idx_in_block - odd_even_bit) >> 1) + (odd_even_bit * (1 << (logN_per_block - 1))) + idx_block * N_per_block;
+      data[new_index] = temp_ls[i];
     }
-
     delete[] temp_ls;
 }
 
 // Rearrange data from AIE's output order to normal order
-void rearrange_from_aie_order(int *data, int32_t logN, int32_t logN_per_core)
+// Arguments:
+// logN: log2 of total data size
+// logN_per_block: log2 of data size per block (phase)
+//   - for whole-core NTT: log2 of data size per core, i.e., LOGN - CORE_NUM_LOG
+//   - for each-core NTT: log2 of N for current phase
+void rearrange_from_aie_order(int *data, int32_t logN, int32_t logN_per_block, bool if_divided)
 {
   int N = 1 << logN;
-  int N_per_core = 1 << logN_per_core;
+  int N_per_block = 1 << logN_per_block;
+  int number_of_blocks = N / N_per_block;
   int *temp = new int[N];
-  
-  // ===================
-  // Inter tile order
-  // ===================
-  // Change core order
-  std::vector<int> aie_order = {0, 2, 1, 3, 8, 10, 9, 11, 4, 6, 5, 7, 12, 14, 13, 15};
-  for (int i = 0; i < CORE_NUM; i++){
-    int aie_order_index = aie_order[i];
-    int *temp_ptr = temp + i * N_per_core;
-    int *aie_ptr = data + aie_order_index * N_per_core;
-    for (int j = 0; j < N_per_core; j++){
-      temp_ptr[j] = aie_ptr[j];
+
+  if (if_divided) {
+    // If not swapped, just copy data to temp
+    for (int i = 0; i < N; i++)
+    {
+      temp[i] = data[i];
+    }
+  }else {
+    // ===================
+    // Inter block order
+    // ===================
+    // Change core order
+    std::vector<int> aie_order = {0, 2, 1, 3, 8, 10, 9, 11, 4, 6, 5, 7, 12, 14, 13, 15};
+    for (int i = 0; i < number_of_blocks; i++){
+      int aie_order_index = aie_order[i];
+      int *temp_ptr = temp + i * N_per_block;
+      int *aie_ptr = data + aie_order_index * N_per_block;
+      for (int j = 0; j < N_per_block; j++){
+        temp_ptr[j] = aie_ptr[j];
+      }
     }
   }
 
-
   // ===================
-  // Inner tile order
+  // Inner block order
   // ===================
-  // Reverse order in each tile
+  // Reverse order in each block
   // CPU: [0, 1, 2, 3, 4, 5, 6, 7]
   // AIE: [0, 2, 4, 6, 1, 3, 5, 7]
-  for (int i = 0; i < CORE_NUM; i++){
-    for (int j = 0; j < (N_per_core / 2); j++){
-      int *data_ptr = data + i * N_per_core;
-      int *temp_ptr = temp + i * N_per_core;
+  for (int i = 0; i < number_of_blocks; i++){
+    int *data_ptr = data + i * N_per_block;
+    int *temp_ptr = temp + i * N_per_block;
+    for (int j = 0; j < (N_per_block / 2); j++){
       data_ptr[2 * j] = temp_ptr[j];
-      data_ptr[2 * j + 1] = temp_ptr[(N_per_core / 2) + j];
+      data_ptr[2 * j + 1] = temp_ptr[(N_per_block / 2) + j];
     }
   }
   delete[] temp;
@@ -258,7 +281,7 @@ int main(int argc, const char *argv[])
   // ===================================
   const int stage_limit = (N_LOG + 1) / 2;
   initialize_a(bufInA_reference, IN_SIZE);
-  // divided_ntt_inplace(bufInA_reference, N_LOG, w_root, modulo_q, stage_limit, false);
+  divided_ntt_inplace(bufInA_reference, N_LOG, w_root, modulo_q, stage_limit, false);
 
 
   for (unsigned iter = 0; iter < n_iterations; iter++)
@@ -269,10 +292,10 @@ int main(int argc, const char *argv[])
     // ===================================
     // Input data
     initialize_a(bufInA, IN_SIZE);
-    // rearrange_to_aie_order(bufInA, N_LOG, N_LOG_PER_CORE);
+    rearrange_to_aie_order(bufInA, N_LOG, N_LOG_PHASE1);
 
     // Twiddle factors
-    initialize_twfactor(bufInFactor, IN_FACTOR_SIZE, modulo_q, w_root);
+    initialize_metadata(bufInFactor, IN_FACTOR_SIZE, modulo_q, w_root, N_LOG_PHASE1);
     if (verbosity >= 2) {
       for (int i = 0; i < CORE_NUM; i++) {
         std::cout << "Core " << i << " Twiddle factors: ";
@@ -311,7 +334,7 @@ int main(int argc, const char *argv[])
     bo_outE.sync(XCL_BO_SYNC_BO_FROM_DEVICE);
     
     // Rearrange output data to normal order
-    // rearrange_from_aie_order(bufOutE, N_LOG, N_LOG_PER_CORE);
+    rearrange_from_aie_order(bufOutE, N_LOG, N_LOG_PHASE1, true);
 
     // ===================================
     // Verify

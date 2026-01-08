@@ -17,10 +17,13 @@ from aie.dialects.aie import *
 from aie.dialects.aiex import *
 from aie.helpers.dialects.ext.scf import _for as range_
 from aie.extras.context import mlir_mod_ctx
+import aie.extras.dialects.ext.arith as arith
+from aie.helpers.util import np_dtype_to_mlir_type
+from aie.extras import types as T
 
 # ===================================
 # Change here for different configurations
-all_size_log = 16
+all_size_log = 17
 # ===================================
 
 DEBUG_ON = 1
@@ -28,7 +31,7 @@ DEBUG_OFF = 0
 STORE_FACTOR = 1
 NO_STORE_FACTOR = 0    
 
-def my_vector_scalar(opts):
+def divided_ntt_internal(opts):
 
     # enableTrace = opts.trace_size > 0
     enableTrace = False
@@ -41,15 +44,16 @@ def my_vector_scalar(opts):
     cores_num_log = col_num_log+raw_num_log
     size_per_core_log = 10 # FIXED.
     
-    block_per_core = 1 << size_per_core_log
-    block_per_col = 1 << (size_per_core_log + raw_num_log)
-    loops = 1 << (all_size_log - size_per_core_log - col_num_log - raw_num_log)
+    block_per_core_log = size_per_core_log
+    block_per_core = 1 << block_per_core_log
+    block_per_col = 1 << (block_per_core_log + raw_num_log)
+    loops = 1 << (all_size_log - block_per_core_log - col_num_log - raw_num_log)
 
     col_num = 1<<col_num_log
     raw_num = 1<<raw_num_log
     all_size = 1<<all_size_log
     factor_buff_size = 1<<size_per_vec_log
-    factor_FIFO_size = all_size_log + 3  # +3 for barrett_w and barrett_u
+    factor_FIFO_size = all_size_log + 4  # +4 for barrett_w, barrett_u, and logn
     cores_num = 1<<cores_num_log
     cores_size = 1<<size_per_core_log
     
@@ -89,6 +93,11 @@ def my_vector_scalar(opts):
         )
         swap = external_func(
             "vector_swap",
+            inputs = [cores_ty,cores_ty,np.int32,np.int32],
+        )
+
+        multi_NTT_in_a_tile = external_func(
+            "multi_NTT_in_a_tile",
             inputs = [cores_ty,cores_ty,np.int32,np.int32],
         )
         
@@ -132,19 +141,6 @@ def my_vector_scalar(opts):
             Mem_Shim_FIFO_ls.append(object_fifo(f"of_Mem_Shim_{col}_FIFO", Mem_tile_ls[col], Shim_tile_ls[col], 1, mem_ty))
         
         
-
-        factor_buff_ls = []
-        for col in range(col_num):
-            factor_buff_ls.append([])
-            for raw in range(raw_num):
-                factor_buff_ls[col].append( buffer(tile=CT_tile_ls[col][raw], datatype= factor_buff_ty))
-        
-        buff_ls = []
-        for col in range(col_num):
-            buff_ls.append([])
-            for raw in range(raw_num):
-                buff_ls[col].append( buffer(tile=CT_tile_ls[col][raw], datatype= cores_ty))
-        
         # ===================
         # Link FIFOs
         # ===================
@@ -162,48 +158,37 @@ def my_vector_scalar(opts):
             for raw in range(raw_num):
                 @core(CT_tile_ls[col][raw], "func.o")
                 def core_body():
-                    # for _ in range_(sys.maxsize):
-                    core_index = col * raw_num + raw
-                                            
-                    factor_FIFO_buff = Mem_CT_factor_FIFO_ls[col].acquire(ObjectFifoPort.Consume, 1)
-                    for _ in range_(loops):
-                        # =====================================
-                        # Copy input to local memory of ComputeTile
-                        # =====================================
-                        in_vec = Mem_CT_FIFO_ls[col][raw].acquire(ObjectFifoPort.Consume, 1)
-                        out_vec = CT_Mem_FIFO_ls[col][raw].acquire(ObjectFifoPort.Produce, 1)
-                        
-                        # =====================================
-                        # cleanup
-                        # =====================================
-                        # TODO: This is dummy output
-                        for i in range_(cores_size):
-                            out_vec[i] = in_vec[i]
+                    for _ in range_(sys.maxsize):
+                        core_index = col * raw_num + raw
+                                                
+                        factor_FIFO_buff = Mem_CT_factor_FIFO_ls[col].acquire(ObjectFifoPort.Consume, 1)
+                        for _ in range_(loops):
+                            # =====================================
+                            # Copy input to local memory of ComputeTile
+                            # =====================================
+                            in_vec = Mem_CT_FIFO_ls[col][raw].acquire(ObjectFifoPort.Consume, 1)
+                            out_vec = CT_Mem_FIFO_ls[col][raw].acquire(ObjectFifoPort.Produce, 1)
 
-                        Mem_CT_FIFO_ls[col][raw].release(ObjectFifoPort.Consume, 1)
-                        CT_Mem_FIFO_ls[col][raw].release(ObjectFifoPort.Produce, 1)
-                    Mem_CT_factor_FIFO_ls[col].release(ObjectFifoPort.Consume, 1)                        
+                            # =====================================
+                            # Prepare parameters
+                            # =====================================
+                            modulo_q = factor_FIFO_buff[all_size_log]
+                            barret_w = factor_FIFO_buff[all_size_log + 1]
+                            barret_u = factor_FIFO_buff[all_size_log + 2]
+                            logn_for_current_ntt = factor_FIFO_buff[all_size_log + 3]
+                            
+                            multi_NTT_in_a_tile(in_vec, out_vec, block_per_core_log, logn_for_current_ntt)
+
+                            
+                            # =====================================
+                            # cleanup
+                            # =====================================
+                            Mem_CT_FIFO_ls[col][raw].release(ObjectFifoPort.Consume, 1)
+                            CT_Mem_FIFO_ls[col][raw].release(ObjectFifoPort.Produce, 1)
+                        Mem_CT_factor_FIFO_ls[col].release(ObjectFifoPort.Consume, 1)                        
 
                         
                     """
-                        # =====================================
-                        # Prepare parameters
-                        # =====================================
-                        modulo_q = factor_FIFO_buff[all_size_log]
-                        barret_w = factor_FIFO_buff[all_size_log + 1]
-                        barret_u = factor_FIFO_buff[all_size_log + 2]
-
-                        # =====================================
-                        # Start NTT
-                        # =====================================
-                        
-                        # =====================================
-                        # Inter-Tile NTT
-                        # Stage 1 to Stage (n-4)
-                        # =====================================
-
-                        up_down_flag_fifo_ls[col][raw].acquire(ObjectFifoPort.Produce, 1)
-                        
                         stage_compute_in_tile = all_size_log - 4
                         for stage in range(1,6):
                             NTT_stage_down(buff,buff,factor_buff,factor_FIFO_buff,stage,all_size_log,size_per_core_log,modulo_q,barret_w,barret_u)
@@ -211,20 +196,6 @@ def my_vector_scalar(opts):
                         for stage in range(6, stage_compute_in_tile + 1):
                             NTT_stage_up(buff,buff,factor_buff,factor_FIFO_buff,stage,all_size_log,size_per_core_log,modulo_q,barret_w,barret_u)
 
-                        up_down_flag_fifo_ls[col][raw].release(ObjectFifoPort.Produce, 1)
-                        
-                        
-                        # =====================================
-                        # cleanup
-                        # =====================================
-                        # TODO: This is dummy output
-                        out_vec = CT_Mem_FIFO_ls[col][raw].acquire(ObjectFifoPort.Produce, 1)
-                        for i in range_(cores_size):
-                            out_vec[i] = buff[i]
-                        CT_Mem_FIFO_ls[col][raw].release(ObjectFifoPort.Produce, 1)
-
-                        # Cleanup
-                        Mem_CT_factor_FIFO_ls[col].release(ObjectFifoPort.Consume, 1)                        
                     """
 
                         
@@ -277,7 +248,7 @@ if __name__ == "__main__":
     )
     opts = p.parse_args(sys.argv[1:])
     with mlir_mod_ctx() as ctx:
-        my_vector_scalar(opts)
+        divided_ntt_internal(opts)
         res = ctx.module.operation.verify()
         if res == True:
             print(ctx.module)

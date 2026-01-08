@@ -128,6 +128,20 @@ extern "C"
   // NTT operations
   // ==================================
 
+  void multi_NTT_in_a_tile(int32_t *buff_in, int32_t *buff_out, int all_size_log, int block_size_log) {
+    const int loops = 1 << (all_size_log - block_size_log);
+    const int block_size = 1 << block_size_log;
+  
+    for (int idx_loop = 0; idx_loop < loops; idx_loop++) {
+      const int offset = idx_loop * block_size;
+      int32_t *buff_i = buff_in + offset;
+      int32_t *buff_o = buff_out + offset;
+      for (int i = 0; i < block_size; i++){
+        buff_o[i] = buff_i[i];
+      }
+    }
+  }
+
   // DIT NTT
   void NTT_stage_down(int32_t *buff_in, int32_t *buff_out, int32_t *factor_buff, int32_t *factor_fifo_buff, int32_t stage, int32_t all_size_log, int32_t size_per_core_log, int32_t modulo_q, int32_t barret_w, int32_t barret_u)
   {

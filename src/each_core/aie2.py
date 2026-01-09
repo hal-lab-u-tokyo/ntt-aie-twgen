@@ -52,7 +52,7 @@ def divided_ntt_internal(opts):
     raw_num = 1<<raw_num_log
     all_size = 1<<all_size_log
     factor_buff_size = 16 * 3
-    factor_FIFO_size = all_size_log + 4  # +4 for barrett_w, barrett_u, and logn
+    factor_FIFO_size = all_size_log + 8  # +4 for barrett_w, barrett_u, and logn
     cores_num = 1<<cores_num_log
     cores_size = 1<<size_per_core_log
     
@@ -75,7 +75,7 @@ def divided_ntt_internal(opts):
         # ===================
         multi_NTT_in_a_tile = external_func(
             "multi_NTT_in_a_tile",
-            inputs = [cores_ty,cores_ty,factor_buff_ty,factor_FIFO_ty,np.int32,np.int32,np.int32,np.int32,np.int32,np.int32],
+            inputs = [cores_ty,cores_ty,factor_buff_ty,factor_FIFO_ty,np.int32,np.int32,np.int32,np.int32,np.int32,np.int32,np.int32,np.int32],
         )
         
 
@@ -130,6 +130,13 @@ def divided_ntt_internal(opts):
         # ===================
         # Buffers
         # ===================
+        buff_ls = []
+        for col in range(col_num):
+            buff_ls.append([])
+            for raw in range(raw_num):
+                buff_ls[col].append( buffer(tile=CT_tile_ls[col][raw], datatype= cores_ty))
+        
+
         factor_buff_ls = []
         for col in range(col_num):
             factor_buff_ls.append([])
@@ -148,13 +155,17 @@ def divided_ntt_internal(opts):
                                                 
                         factor_FIFO_buff = Mem_CT_factor_FIFO_ls[col].acquire(ObjectFifoPort.Consume, 1)
                         factor_buff = factor_buff_ls[col][raw]
+                        buff = buff_ls[col][raw]
                         
-                        for _ in range_(loops):
+                        for loop in range_(loops):
                             # =====================================
                             # Copy input to local memory of ComputeTile
                             # =====================================
                             in_vec = Mem_CT_FIFO_ls[col][raw].acquire(ObjectFifoPort.Consume, 1)
                             out_vec = CT_Mem_FIFO_ls[col][raw].acquire(ObjectFifoPort.Produce, 1)
+
+                            for i in range_(block_per_core):
+                                buff[i] = in_vec[i]
 
                             # =====================================
                             # Prepare parameters
@@ -163,13 +174,23 @@ def divided_ntt_internal(opts):
                             barret_w = factor_FIFO_buff[all_size_log + 1]
                             barret_u = factor_FIFO_buff[all_size_log + 2]
                             logn_for_current_ntt = factor_FIFO_buff[all_size_log + 3]
+                            n_for_current_ntt = factor_FIFO_buff[all_size_log + 4]
+                            if_phase2 = factor_FIFO_buff[all_size_log + 5]
+
                             
-                            multi_NTT_in_a_tile(in_vec, out_vec, factor_buff, factor_FIFO_buff, all_size_log, block_per_core_log, logn_for_current_ntt, modulo_q, barret_w, barret_u)
+                            number_of_ntt_per_core = block_per_core // n_for_current_ntt
+                            w_offset_pow = loop * (number_of_ntt_per_core * cores_num) + core_index * number_of_ntt_per_core
+                            w_offset_pow_i32 = arith.index_cast(w_offset_pow, to=np_dtype_to_mlir_type(np.int32))
+                            multi_NTT_in_a_tile(buff, buff, factor_buff, factor_FIFO_buff, all_size_log, 
+                                                block_per_core_log, logn_for_current_ntt, modulo_q, barret_w, barret_u, w_offset_pow_i32, if_phase2)
 
                             
                             # =====================================
                             # cleanup
                             # =====================================
+                            for i in range_(block_per_core):
+                                out_vec[i] = buff[i]
+                            
                             Mem_CT_FIFO_ls[col][raw].release(ObjectFifoPort.Consume, 1)
                             CT_Mem_FIFO_ls[col][raw].release(ObjectFifoPort.Produce, 1)
                         Mem_CT_factor_FIFO_ls[col].release(ObjectFifoPort.Consume, 1)                        

@@ -140,8 +140,9 @@ void ntt_cpu(int *data, int logN, int W, int MOD, bool inverse, int stop_stage_f
 // =======================
 // Divided NTT
 // =======================
-inline void divided_ntt_inplace_internal(int *ls, int step, int all_len, int W, int MOD, int stage_do, int w_offset_pow)
+inline void divided_ntt_inplace_internal(int *ls, int step, int all_len, int W, int MOD, int stage_do, int w_offset_pow, int phase)
 {
+    // printf("---- divided_ntt_inplace_internal: step=%d, all_len=%d, W=%d, MOD=%d, stage_do=%d, w_offset_pow=%d ----\n", step, all_len, W, MOD, stage_do, w_offset_pow);
     int m = std::log2(all_len);
     // int l = ls.size();
     if (stage_do >= m)
@@ -165,6 +166,10 @@ inline void divided_ntt_inplace_internal(int *ls, int step, int all_len, int W, 
         half = idx_step;
         idx_step <<= 1;
 
+        // printf("=============================================\n");
+        // printf(" internal NTT Stage %d/%d, w_offset_pow=%d, w_offset=%u, offset_exponent=%u, ws=%u\n", s + 1, stage_do, w_offset_pow, w_offset, offset_exponent, ws);
+        // printf("=============================================\n");
+
         for (int p = 0; p < step; p += idx_step)
         {
             wi = w_offset;
@@ -180,13 +185,13 @@ inline void divided_ntt_inplace_internal(int *ls, int step, int all_len, int W, 
                 ls[i] = (u + term) % MOD;
                 ls[j] = (u - term % MOD + MOD) % MOD;
 
+                // printf(" internal stage %d butterfly: ls[%u]=%u, ls[%u]=%u, wi=%u, from u=%u, v=%u\n", s + 1, i, ls[i], j, ls[j], wi, u, v);
+                
                 wi = mod_mul(wi, ws, MOD);
             }
         }
     }
 }
-
-bool if_debug = true;
 
 void divided_ntt_inplace(int *data, int logN, int W, int MOD, int stage_limit, bool inverse)
 {
@@ -212,13 +217,6 @@ void divided_ntt_inplace(int *data, int logN, int W, int MOD, int stage_limit, b
     int idx = 0;
     while (stage_remain > 0)
     {
-        // TODO
-        if (if_debug) {
-            if (idx != 0){
-                break;
-            }
-        }
-
         int stage_do = std::min(stage_limit, stage_remain);
         int step = 1 << stage_do;
         int stage_will_remain = stage_remain - stage_do;
@@ -236,18 +234,16 @@ void divided_ntt_inplace(int *data, int logN, int W, int MOD, int stage_limit, b
             int t = ((int)start >> stage_remain) << stage_will_remain;
             int w_offset_pow = t;
 
-            // TODO: 
-            if (if_debug) {
-                w_offset_pow = 0;
-            }
-            divided_ntt_inplace_internal(new_res + start, step, n, current_W, MOD, stage_do, w_offset_pow);
+            // printf("start=%d, end=%d, step=%d, stage_remain=%d, stage_will_remain=%d, w_offset_pow=%d\n", start, end, step, stage_remain, stage_will_remain, w_offset_pow);
+
+            divided_ntt_inplace_internal(new_res + start, step, n, current_W, MOD, stage_do, w_offset_pow, idx);
         }
 
         for (int i = 0; i < n; ++i)
         {
             data[i] = new_res[rotl(i, stage_do, m)];
         }
-
+        
         stage_remain = stage_will_remain;
 
         idx += 1;

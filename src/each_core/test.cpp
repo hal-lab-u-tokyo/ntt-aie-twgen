@@ -38,7 +38,7 @@ const int32_t RAW_NUM_LOG = 2;
 const int32_t RAW_NUM = 1 << RAW_NUM_LOG;
 const int32_t CORE_NUM_LOG = COL_NUM_LOG + RAW_NUM_LOG;
 const int32_t CORE_NUM = COL_NUM * RAW_NUM;
-const int32_t FACTOR_SIZE_PER_CORE = N_LOG + 4;
+const int32_t FACTOR_SIZE_PER_CORE = N_LOG + 8;
 const int32_t N_LOG_PER_CORE = N_LOG - CORE_NUM_LOG;
 
 // ===================================
@@ -50,13 +50,15 @@ const int32_t N_PHASE1 = 1 << N_LOG_PHASE1;
 const int32_t N_PHASE2 = 1 << N_LOG_PHASE2;
 const int32_t LOOP_PHASE1 = N_LOG_PHASE2 - CORE_NUM_LOG;
 const int32_t LOOP_PHASE2 = N_LOG_PHASE1 - CORE_NUM_LOG;
+const int32_t FLAG_PHASE1 = 0;
+const int32_t FLAG_PHASE2 = 1;
 
 
 void initialize_a(int *a, int32_t size)
 {
   for (int32_t i = 0; i < size; i++)
   {
-    a[i] = i % modulo_q;
+    a[i] = ((int64_t)i * i) % modulo_q;
   }
 }
 
@@ -64,7 +66,7 @@ void initialize_a(int *a, int32_t size)
 // Output buffer consists of `COL_NUM` loops of `FACTOR_SIZE_PER_CORE` metadatas
 // Each `FACTOR_SIZE_PER_CORE` buffer is:
 // [w, w^2, w^4, w^8, ..., w^(2^(N_LOG-1)), modulus, barrett_w, barrett_u]
-void initialize_metadata(int *buff, int32_t size, int32_t mod, int32_t root, int32_t logn_for_current_ntt)
+void initialize_metadata(int *buff, int32_t size, int32_t mod, int32_t root, int32_t logn_for_current_ntt, int32_t if_phase2)
 {
   assert(size == FACTOR_SIZE_PER_CORE * COL_NUM);
   for (int core = 0; core < CORE_NUM; core++){
@@ -82,6 +84,8 @@ void initialize_metadata(int *buff, int32_t size, int32_t mod, int32_t root, int
     buff[FACTOR_SIZE_PER_CORE * core + N_LOG + 1] = barrett_w;
     buff[FACTOR_SIZE_PER_CORE * core + N_LOG + 2] = barrett_u;
     buff[FACTOR_SIZE_PER_CORE * core + N_LOG + 3] = logn_for_current_ntt;
+    buff[FACTOR_SIZE_PER_CORE * core + N_LOG + 4] = 1 << logn_for_current_ntt;
+    buff[FACTOR_SIZE_PER_CORE * core + N_LOG + 5] = if_phase2;
   }
 }
 
@@ -171,12 +175,26 @@ void rearrange_from_aie_order(int *data, int32_t logN, int32_t logN_per_block, b
   delete[] temp;
 }
 
-void rearrange_from_aie_order_and_rotl(int *dst, int *src, int32_t logN, int32_t logN_per_block, int32_t rotation)
+void rotl_array(int *dst, int *src, int32_t logN, int32_t rotation){
+  int N = 1 << logN;
+  int *tmp = new int[N];
+  for (int i = 0; i < N; i++){
+    tmp[i] = src[rotl(i, rotation, logN)];
+  }
+  for (int i = 0; i < N; i++){
+    dst[i] = tmp[i];
+  }
+  delete[] tmp;
+}
+
+void rearrange_and_rotl(int *dst, int *src, int32_t logN, int32_t logN_p1, int32_t logN_p2, int32_t rotation)
 {
   int N = 1 << logN;
-  int N_per_block = 1 << logN_per_block;
-  int number_of_blocks = N / N_per_block;
+  int N_p1 = 1 << logN_p1;
+  int N_p2 = 1 << logN_p2;
   int *temp = new int[N];
+
+  // TODO: can we merge rearrangement and rotl in one loop?
 
   // ===================
   // Inner block order
@@ -184,21 +202,41 @@ void rearrange_from_aie_order_and_rotl(int *dst, int *src, int32_t logN, int32_t
   // Reverse order in each block
   // CPU: [0, 1, 2, 3, 4, 5, 6, 7]
   // AIE: [0, 2, 4, 6, 1, 3, 5, 7]
-  for (int i = 0; i < number_of_blocks; i++)
+  for (int i = 0; i < N_p2; i++)
   {
-    int *src_i = src + i * N_per_block;
-    int *temp_i = temp + i * N_per_block;
-    for (int j = 0; j < (N_per_block / 2); j++)
+    int *src_i = src + i * N_p1;
+    int *temp_i = temp + i * N_p1;
+    for (int j = 0; j < (N_p1 / 2); j++)
     {
       temp_i[2 * j] = src_i[j];
-      temp_i[2 * j + 1] = src_i[(N_per_block / 2) + j];
+      temp_i[2 * j + 1] = src_i[(N_p1 / 2) + j];
     }
   }
 
+  // ===================
   // rotl
+  // ===================
   for (int i = 0; i < N; i++)
   {
-    dst[i] = temp[rotl(i, rotation, logN)];
+    src[i] = temp[rotl(i, rotation, logN)];
+  }
+
+  // ===================
+  // Inter block order
+  // ===================
+  for (int i = 0; i < N_p1; i++)
+  {
+    int *temp_i = temp + i * N_p2;
+    int *src_i = src + i * N_p2;
+    for (int j = 0; j < (N_p2 / 2); j++)
+    {
+      temp_i[j] = src_i[2 * j];
+      temp_i[(N_p2 / 2) + j] = src_i[2 * j + 1];
+    }
+  }
+
+  for (int i = 0; i < N; i++){
+    dst[i] = temp[i];
   }
 
   delete[] temp;
@@ -319,26 +357,23 @@ int main(int argc, const char *argv[])
 
   for (unsigned iter = 0; iter < n_iterations; iter++)
   {
+    unsigned int opcode = 3;
 
     // ===================================
     // Initialize input data for each iteration
     // ===================================
+    
+    // ===================================
+    // Prepare for Phase1
+    // ===================================
+    
     // Input data
     initialize_a(bufInA, IN_SIZE);
     rearrange_to_aie_order(bufInA, N_LOG, N_LOG_PHASE1);
 
     // Twiddle factors
-    initialize_metadata(bufInFactor, IN_FACTOR_SIZE, modulo_q, w_root, N_LOG_PHASE1);
-    if (verbosity >= 2) {
-      for (int i = 0; i < CORE_NUM; i++) {
-        std::cout << "Core " << i << " Twiddle factors: ";
-        for (int j = 0; j < FACTOR_SIZE_PER_CORE; j++) {
-          std::cout << bufInFactor[i * FACTOR_SIZE_PER_CORE + j] << " ";
-        }
-        std::cout << "\n";
-      }
-    }
-
+    initialize_metadata(bufInFactor, IN_FACTOR_SIZE, modulo_q, w_root, N_LOG_PHASE1, FLAG_PHASE1);
+    
     // Clear output buffer
     memset(bufOutE, 0, OUT_SIZE * sizeof(int));
 
@@ -348,29 +383,48 @@ int main(int argc, const char *argv[])
     bo_outE.sync(XCL_BO_SYNC_BO_TO_DEVICE);
 
 
-    // ===================================
-    // Run kernel
-    // ===================================
     std::cout << "====================\n";
     if (verbosity >= 1)
     {
       std::cout << "Running Kernel.\n";
     }
     auto start = std::chrono::high_resolution_clock::now();
-    unsigned int opcode = 3;
+    
+    // ===================================
+    // Phase1
+    // ===================================
     auto run =
         kernel(opcode, bo_instr, instr_v.size(), bo_inA, bo_in_factor, bo_outE);
     run.wait();
-    auto stop = std::chrono::high_resolution_clock::now();
 
-    // Sync device to host memories
     bo_outE.sync(XCL_BO_SYNC_BO_FROM_DEVICE);
 
+    // ===================================
+    // Prepare for Phase2
+    // ===================================
     // rotation and set new input
-    rearrange_from_aie_order_and_rotl(bufOutE, bufOutE, N_LOG, N_LOG_PHASE1, N_LOG_PHASE1);
+    rearrange_and_rotl(bufInA, bufOutE, N_LOG, N_LOG_PHASE1, N_LOG_PHASE2, N_LOG_PHASE1);
+    
+    // Twiddle factors
+    initialize_metadata(bufInFactor, IN_FACTOR_SIZE, modulo_q, w_root, N_LOG_PHASE2, FLAG_PHASE2);
+    
+    bo_inA.sync(XCL_BO_SYNC_BO_TO_DEVICE);
+    bo_in_factor.sync(XCL_BO_SYNC_BO_TO_DEVICE);
+    bo_outE.sync(XCL_BO_SYNC_BO_TO_DEVICE); // This sync is required
+    
+    // ===================================
+    // Phase2
+    // ===================================
+    auto run_p2 =
+        kernel(opcode, bo_instr, instr_v.size(), bo_inA, bo_in_factor, bo_outE);
+    run_p2.wait();
+    bo_outE.sync(XCL_BO_SYNC_BO_FROM_DEVICE);
+    
+    auto stop = std::chrono::high_resolution_clock::now();
     
     // Rearrange output data to normal order
-    // rearrange_from_aie_order(bufOutE, N_LOG, N_LOG_PHASE1, true);
+    rearrange_from_aie_order(bufOutE, N_LOG, N_LOG_PHASE2, true);
+    rotl_array(bufOutE, bufOutE, N_LOG, N_LOG_PHASE2);
 
     // ===================================
     // Verify

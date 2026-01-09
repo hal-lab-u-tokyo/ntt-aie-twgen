@@ -57,6 +57,21 @@ aie::vector<int32_t, vec_prime> vector_barrett(aie::vector<int32_t, vec_prime> &
   return barrett;
 }
 
+aie::vector<int32_t, vec_prime> vector_barrett_const(const aie::vector<int32_t, vec_prime> &v, aie::vector<int32_t, vec_prime> &p_vec, aie::vector<int32_t, vec_prime> &factor_vec, aie::vector<int32_t, vec_prime> &u_vec, int32_t w)
+{
+  aie::accum<acc64, vec_prime> t = aie::mul(v, factor_vec);
+  aie::vector<int32_t, vec_prime> x_1 = t.template to_vector<int32_t>(w - 2);
+  aie::accum<acc64, vec_prime> x_2 = aie::mul(x_1, u_vec);
+  aie::vector<int32_t, vec_prime> s = x_2.template to_vector<int32_t>(w + 2);
+  aie::accum<acc64, vec_prime> r = aie::mul(s, p_vec);
+  aie::accum<acc64, vec_prime> cc = aie::sub(t, r);
+  aie::vector<int32_t, vec_prime> c = cc.template to_vector<int32_t>(0);
+  aie::mask<vec_prime> mask_c_lt_p = aie::lt(c, p_vec);
+  aie::vector<int32_t, vec_prime> over_c = aie::select(p_vec, 0, mask_c_lt_p);
+  aie::vector<int32_t, vec_prime> barrett = aie::sub(c, over_c);
+  return barrett;
+}
+
 // Barrett reduction for 8 elements
 aie::vector<int32_t, vec_prime_half>
 vector_barrett_half(const aie::vector<int32_t, vec_prime_half> &v, const aie::vector<int32_t, vec_prime_half> &p_vec, const aie::vector<int32_t, vec_prime_half> &factor_vec, const aie::vector<int32_t, vec_prime_half> &u_vec, int32_t w)
@@ -85,8 +100,28 @@ aie::vector<int32_t, vec_prime> vector_modadd(aie::vector<int32_t, vec_prime> &v
   return modadd;
 }
 
+// Modulo addition for 16 elements
+aie::vector<int32_t, vec_prime> vector_modadd_const(const aie::vector<int32_t, vec_prime> &v0, const aie::vector<int32_t, vec_prime> &v1, aie::vector<int32_t, vec_prime> &p_vector)
+{
+  aie::vector<int32_t, vec_prime> v2 = aie::add(v0, v1);
+  aie::mask<vec_prime> mask_v2_lt_p = aie::lt(v2, p_vector);
+  aie::vector<int32_t, vec_prime> over_v2 = aie::select(p_vector, 0, mask_v2_lt_p);
+  aie::vector<int32_t, vec_prime> modadd = aie::sub(v2, over_v2);
+  return modadd;
+}
+
 // Modulo subtraction for 16 elements
 aie::vector<int32_t, vec_prime> vector_modsub(aie::vector<int32_t, vec_prime> &v0, aie::vector<int32_t, vec_prime> &v1, aie::vector<int32_t, vec_prime> &p_vector)
+{
+  aie::vector<int32_t, vec_prime> v0_plus_p = aie::add(v0, p_vector);
+  aie::vector<int32_t, vec_prime> v3 = aie::sub(v0_plus_p, v1);
+  aie::mask<vec_prime> mask_v3_lt_p = aie::lt(v3, p_vector);
+  aie::vector<int32_t, vec_prime> over_v3 = aie::select(p_vector, 0, mask_v3_lt_p);
+  aie::vector<int32_t, vec_prime> modsub = aie::sub(v3, over_v3);
+  return modsub;
+}
+
+aie::vector<int32_t, vec_prime> vector_modsub_const(const aie::vector<int32_t, vec_prime> &v0, const aie::vector<int32_t, vec_prime> &v1, aie::vector<int32_t, vec_prime> &p_vector)
 {
   aie::vector<int32_t, vec_prime> v0_plus_p = aie::add(v0, p_vector);
   aie::vector<int32_t, vec_prime> v3 = aie::sub(v0_plus_p, v1);
@@ -129,7 +164,8 @@ extern "C"
   // ==================================
 
   // DIT NTT
-  void NTT_stage_down(int32_t *buff_in, int32_t *buff_out, int32_t *factor_buff, int32_t *factor_fifo_buff, int32_t stage, int32_t all_size_log, int32_t size_per_core_log, int32_t modulo_q, int32_t barret_w, int32_t barret_u)
+  void NTT_stage_down(int32_t *buff_in, int32_t *buff_out, int32_t *factor_buff, int32_t *factor_fifo_buff, int32_t stage, int32_t all_size_log, int32_t size_per_core_log, 
+    int32_t modulo_q, int32_t barret_w, int32_t barret_u, int32_t w_offset)
   {
     event0();
 
@@ -142,9 +178,8 @@ extern "C"
 
     aie::vector<int32_t, vec_prime> factor_vec_stage;
 
-        // On-the-fly compute factor vectors
-        aie::vector<int32_t, vec_prime>
-            factor_vec;
+    // On-the-fly compute factor vectors
+    aie::vector<int32_t, vec_prime> factor_vec;
     if (stage == 1)
     {
       factor_vec = aie::broadcast<int32_t, vec_prime>(1);
@@ -161,6 +196,14 @@ extern "C"
       factor_vec = aie::concat(res, res2);
     }
     aie::store_v(factor_buff, factor_vec);
+
+    if (w_offset != 1)
+    {
+      // Apply w_offset to factor_vec
+      aie::vector<int32_t, vec_prime> w_offset_vec = aie::broadcast<int32_t, vec_prime>(w_offset);
+      factor_vec_1 = vector_barrett(factor_vec_1, q_vector, w_offset_vec, u_vector, barret_w);
+      factor_vec_2 = vector_barrett(factor_vec_2, q_vector, w_offset_vec, u_vector, barret_w);
+    }
     
     // Compute NTT stage
     int32_t w_stage_cnt = 1 << (all_size_log - (stage - 1));
@@ -176,6 +219,12 @@ extern "C"
         int32_t *BF_index_in_2 = buff_in + i * vec_prime + core_half_size;
         aie::vector<int32_t, vec_prime> a1 = aie::load_v<vec_prime>(BF_index_in_1);
         aie::vector<int32_t, vec_prime> a2 = aie::load_v<vec_prime>(BF_index_in_2);
+
+        if (w_offset != 1)
+        {
+          aie::vector<int32_t, vec_prime> w_offset_vec = aie::broadcast<int32_t, vec_prime>(w_offset);
+          a2 = vector_barrett(a2, q_vector, w_offset_vec, u_vector, barret_w);
+        }
 
         aie::vector<int32_t, vec_prime> add = vector_modadd(a1, a2, q_vector);
         aie::vector<int32_t, vec_prime> sub = vector_modsub(a1, a2, q_vector);
@@ -207,10 +256,12 @@ extern "C"
         aie::vector<int32_t, vec_prime> a = aie::concat(a1_half, a2_half);
         aie::vector<int32_t, vec_prime> b = aie::concat(b1_half, b2_half);
 
-        if (stage != 2)
-        {
-          b = vector_barrett(b, q_vector, factor_vec_1, u_vector, barret_w);
-        }
+        // TODO: why exclude stage 2 in original implementation?
+        // if (stage != 2)
+        // {
+          // b = vector_barrett(b, q_vector, factor_vec_1, u_vector, barret_w);
+        // }
+        b = vector_barrett(b, q_vector, factor_vec_1, u_vector, barret_w);
         aie::vector<int32_t, vec_prime> add = vector_modadd(a, b, q_vector);
         aie::vector<int32_t, vec_prime> sub = vector_modsub(a, b, q_vector);
 
@@ -256,7 +307,8 @@ extern "C"
   }
 
   // DIF NTT
-  void NTT_stage_up(int32_t *buff_in, int32_t *buff_out, int32_t *factor_buff, int32_t *factor_fifo_buff, int32_t stage, int32_t all_size_log, int32_t size_per_core_log, int32_t modulo_q, int32_t barret_w, int32_t barret_u)
+  void NTT_stage_up(int32_t *buff_in, int32_t *buff_out, int32_t *factor_buff, int32_t *factor_fifo_buff, int32_t stage, int32_t all_size_log, int32_t size_per_core_log, 
+    int32_t modulo_q, int32_t barret_w, int32_t barret_u, int32_t w_offset = 1)
   {
     event0();
 
@@ -271,15 +323,25 @@ extern "C"
     int32_t cores_half_size = 1 << (size_per_core_log - 1);
 
     aie::vector<int32_t, vec_prime> factor_vec_stage = aie::broadcast<int32_t, vec_prime>(factor_fifo_buff[all_size_log - stage]);
-    // 前からやっていくと消す可能性あるけど後ろからやっていけば消えないのでは？？
+
     for (int index_reverse = 0; index_reverse < (1 << (stage - 6)); index_reverse++)
     {
       int32_t index = (1 << (stage - 6)) - index_reverse - 1;
       int32_t *factor_temp_index = factor_buff + vec_prime * index;
       aie::vector<int32_t, vec_prime> factor_vec_1 = aie::load_v<vec_prime>(factor_temp_index);
       aie::vector<int32_t, vec_prime> factor_vec_2 = vector_barrett(factor_vec_stage, q_vector, factor_vec_1, u_vector, barret_w);
-      // エラー出るから足してみた
-      // factor_vec_2 = vector_modadd(factor_vec_2,q_vector,q_vector);
+      auto [res, res2] = aie::interleave_zip(factor_vec_1, factor_vec_2, 1);
+      aie::store_v(factor_buff + index * vec_prime * 2, res);
+      aie::store_v(factor_buff + index * vec_prime * 2 + vec_prime, res2);
+      
+      if (w_offset != 1)
+      {
+        // Apply w_offset to factor_vec_stage
+        aie::vector<int32_t, vec_prime> w_offset_vec = aie::broadcast<int32_t, vec_prime>(w_offset);
+        factor_vec_1 = vector_barrett(factor_vec_1, q_vector, w_offset_vec, u_vector, barret_w);
+        factor_vec_2 = vector_barrett(factor_vec_2, q_vector, w_offset_vec, u_vector, barret_w);
+      }
+
       for (int BF_set = 0; BF_set < (w_stage_cnt >> 1); BF_set++)
       {
         int32_t *BF_index_in_1 = buff_in + BF_elements * BF_set + index * vec_prime;
@@ -288,37 +350,29 @@ extern "C"
         aie::vector<int32_t, vec_prime> b1 = aie::load_v<vec_prime>(BF_index_in_1 + gap);
         aie::vector<int32_t, vec_prime> barret = vector_barrett(b1, q_vector, factor_vec_1, u_vector, barret_w);
         aie::vector<int32_t, vec_prime> add = vector_modadd(a1, barret, q_vector);
-        // add = vector_modadd(add, q_vector, q_vector);
         aie::vector<int32_t, vec_prime> sub = vector_modsub(a1, barret, q_vector);
-        // sub = vector_modadd(sub, q_vector, q_vector);
         int32_t *BF_index_out_1 = buff_out + BF_elements * BF_set + index * vec_prime;
         int32_t *BF_index_out_gap_1 = buff_out + BF_elements * BF_set + index * vec_prime + gap;
         aie::store_v(BF_index_out_1, add);
         aie::store_v(BF_index_out_gap_1, sub);
 
-        // これ再度定義しないとだめ
         aie::vector<int32_t, vec_prime> a2 = aie::load_v<vec_prime>(BF_index_in_2);
         aie::vector<int32_t, vec_prime> b2 = aie::load_v<vec_prime>(BF_index_in_2 + gap);
         aie::vector<int32_t, vec_prime> barret_2 = vector_barrett(b2, q_vector, factor_vec_2, u_vector, barret_w);
         aie::vector<int32_t, vec_prime> add_2 = vector_modadd(a2, barret_2, q_vector);
-        // add_2 = vector_modadd(add_2, q_vector, q_vector);
         aie::vector<int32_t, vec_prime> sub_2 = vector_modsub(a2, barret_2, q_vector);
-        // sub_2 = vector_modadd(sub_2, q_vector, q_vector);
         int32_t *BF_index_out_2 = buff_out + BF_elements * BF_set + index * vec_prime + cores_half_size;
         int32_t *BF_index_out_gap_2 = buff_out + BF_elements * BF_set + index * vec_prime + gap + cores_half_size;
         aie::store_v(BF_index_out_2, add_2);
         aie::store_v(BF_index_out_gap_2, sub_2);
       }
-
-      auto [res, res2] = aie::interleave_zip(factor_vec_1, factor_vec_2, 1);
-      aie::store_v(factor_buff + index * vec_prime * 2, res);
-      aie::store_v(factor_buff + index * vec_prime * 2 + vec_prime, res2);
     }
 
     event1();
   }
 
-  void NTT_stage_next_up_down(int32_t *buff_in_1, int32_t *buff_in_2, int32_t *buff_out_1, int32_t *buff_out_2, int32_t *factor_buff, int32_t *factor_fifo_buff, int32_t factor_scalar, int32_t half_bool, int32_t stage, int32_t all_size_log, int32_t size_per_core_log, int32_t times, int32_t modulo_q, int32_t barret_w, int32_t barret_u, int32_t if_debug, int if_store_factor)
+  void NTT_stage_next_up_down(int32_t *buff_in_1, int32_t *buff_in_2, int32_t *buff_out_1, int32_t *buff_out_2, int32_t *factor_buff, int32_t *factor_fifo_buff, int32_t factor_scalar, int32_t half_bool, int32_t stage, int32_t all_size_log, int32_t size_per_core_log, int32_t times, 
+    int32_t modulo_q, int32_t barret_w, int32_t barret_u, int32_t if_debug, int if_store_factor)
   {
     // factor_scale : 基準のfactor_buffに "factor_scale倍して計算をしていく"
     // CT3()ComputeTile_2では
@@ -375,17 +429,25 @@ extern "C"
       aie::store_v(BF_index_out_1, add);
       aie::store_v(BF_index_out_2, sub);
       
-      if (if_debug == 1){
-        // aie::store_v(BF_index_out_2, factor_vec);
-      }
-      
       factor_vec = vector_barrett(factor_vec, q_vector, factor_vec_stage_2_full, u_vector, barret_w);
     }
     event1();
   }
 
+  int32_t pow_from_table(int32_t exponent, int32_t *table, int32_t table_size, int32_t modulo_q, int barret_w, int barret_u)
+  {
+    int32_t res = 1;
+    for (int32_t i = 0; i < table_size; i++){
+      if (exponent & (1 << i)){
+        res = barrett(res, modulo_q, table[i], barret_u, barret_w);
+      }
+    }
+    return res;
+  }
+
   // NOTICE: current_ntt_log must be greater than or equal to 6
-  void multi_NTT_in_a_tile(int32_t *buff_in, int32_t *buff_out, int32_t *factor_buff, int32_t *factor_fifo_buff, int all_size_log, int buff_size_log, int current_ntt_log, int32_t modulo_q, int32_t barret_w, int32_t barret_u)
+  void multi_NTT_in_a_tile(int32_t *buff_in, int32_t *buff_out, int32_t *factor_buff, int32_t *factor_fifo_buff, int all_size_log, int buff_size_log, int current_ntt_log, 
+    int32_t modulo_q, int32_t barret_w, int32_t barret_u, int32_t w_offset_pow, int32_t if_phase2)
   {
     const int loops = 1 << (buff_size_log - current_ntt_log);
     const int ntt_size = 1 << (current_ntt_log);
@@ -394,15 +456,28 @@ extern "C"
     {
       const int offset = idx_loop * ntt_size;
       int32_t *buff_i = buff_in + offset;
-      int32_t *buff_o = buff_out + offset;
-      for (int stage = 1; stage < 6; stage++)
-      {
-        NTT_stage_down(buff_i, buff_i, factor_buff, factor_fifo_buff, stage, all_size_log, current_ntt_log, modulo_q, barret_w, barret_u);
-      }
-      for (int stage = 6; stage < current_ntt_log + 1; stage++)
-      {
-        int32_t *ptr_out = (stage == current_ntt_log) ? buff_o : buff_i;
-        NTT_stage_up(buff_i, ptr_out, factor_buff, factor_fifo_buff, stage, all_size_log, current_ntt_log, modulo_q, barret_w, barret_u);
+      
+      // NTT
+      if (if_phase2) {
+        int offset_exponent = (w_offset_pow + idx_loop) << current_ntt_log;
+        for (int stage = 1; stage < 6; stage++){
+          offset_exponent >>= 1;
+          int w_offset = pow_from_table(offset_exponent, factor_fifo_buff, all_size_log, modulo_q, barret_w, barret_u);
+          NTT_stage_down(buff_i, buff_i, factor_buff, factor_fifo_buff, stage, all_size_log, current_ntt_log, modulo_q, barret_w, barret_u, w_offset);
+        }
+        for (int stage = 6; stage < current_ntt_log + 1; stage++){
+          offset_exponent >>= 1;
+          int w_offset = pow_from_table(offset_exponent, factor_fifo_buff, all_size_log, modulo_q, barret_w, barret_u);
+          NTT_stage_up(buff_i, buff_i, factor_buff, factor_fifo_buff, stage, all_size_log, current_ntt_log, modulo_q, barret_w, barret_u, w_offset);
+        }
+      } else {
+        int w_offset = 1;
+        for (int stage = 1; stage < 6; stage++){
+          NTT_stage_down(buff_i, buff_i, factor_buff, factor_fifo_buff, stage, all_size_log, current_ntt_log, modulo_q, barret_w, barret_u, w_offset);
+        }
+        for (int stage = 6; stage < current_ntt_log + 1; stage++){
+          NTT_stage_up(buff_i, buff_i, factor_buff, factor_fifo_buff, stage, all_size_log, current_ntt_log, modulo_q, barret_w, barret_u, w_offset);
+        }
       }
     }
   }

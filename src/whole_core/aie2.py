@@ -80,7 +80,7 @@ def my_vector_scalar(opts):
             )
         NTT_stage_next_up_down = external_func(
             "NTT_stage_next_up_down",
-            inputs = [cores_ty,cores_ty,cores_ty,cores_ty,factor_buff_ty,factor_FIFO_ty,np.int32,np.int32,np.int32, np.int32,np.int32,np.int32, np.int32,np.int32,np.int32,np.int32,np.int32],
+            inputs = [cores_ty,cores_ty,cores_ty,cores_ty,factor_buff_ty,factor_FIFO_ty,np.int32,np.int32,np.int32,np.int32,np.int32,np.int32,np.int32, np.int32,np.int32,np.int32,np.int32,np.int32],
         )
         swap = external_func(
             "vector_swap",
@@ -259,7 +259,8 @@ def my_vector_scalar(opts):
                             NTT_stage_up(buff,buff,factor_buff,factor_FIFO_buff,stage,all_size_log,size_per_core_log,modulo_q,barret_w,barret_u, 1)
 
                         up_down_flag_fifo_ls[col][raw].release(ObjectFifoPort.Produce, 1)
-                        
+
+
                         # =====================================
                         #  NTT Stage (n-3)
                         #  3  7 11 15
@@ -290,6 +291,7 @@ def my_vector_scalar(opts):
                         if raw % 2 == 0:
                             half_bool = 0
                             factor_scalar = 1
+                            factor_scaler_index = 0
                             NTT_stage_next_up_down(buff_ls[col][raw],
                                                    buff_ls[col][raw+reached_tile],
                                                    buff_ls[col][raw],
@@ -297,6 +299,7 @@ def my_vector_scalar(opts):
                                                    factor_buff,
                                                    factor_FIFO_buff,
                                                    factor_scalar,
+                                                   factor_scaler_index,
                                                    half_bool,
                                                    stage,
                                                    all_size_log,
@@ -311,6 +314,7 @@ def my_vector_scalar(opts):
                         else:
                             half_bool = 1
                             factor_scalar = 1
+                            factor_scaler_index = 0
                             NTT_stage_next_up_down(buff_ls[col][raw+reached_tile],
                                                    buff_ls[col][raw],
                                                    buff_ls[col][raw+reached_tile],
@@ -318,6 +322,7 @@ def my_vector_scalar(opts):
                                                    factor_buff,
                                                    factor_FIFO_buff,
                                                    factor_scalar,
+                                                   factor_scaler_index,
                                                    half_bool,
                                                    stage,
                                                    all_size_log,
@@ -331,6 +336,7 @@ def my_vector_scalar(opts):
 
                         up_down_flag_fifo_ls[col][raw+reached_tile].release(ObjectFifoPort.Consume, 1)
 
+                        
                         #======
                         # For next swap
                         destination = swap_destination[col][raw]
@@ -374,6 +380,9 @@ def my_vector_scalar(opts):
                         up_down_flag_fifo_ls[col][raw].release(ObjectFifoPort.Produce, 1)
                         #======
 
+                        
+                        
+
                         # =====================================
                         # NTT Stage (n-2)
                         # =====================================
@@ -391,6 +400,7 @@ def my_vector_scalar(opts):
                             right_left_flag_fifo_ls[col][raw].acquire(ObjectFifoPort.Produce, 1)
                         #======
 
+                        
                         if raw % 2 == 0:
                             reached_tile = 1
                         else:
@@ -402,6 +412,7 @@ def my_vector_scalar(opts):
                             factor_scalar = factor_FIFO_buff[stage]
                         else:
                             factor_scalar = 1
+                        factor_scaler_index = 0
 
                         
                         if raw % 2 == 0:
@@ -412,7 +423,9 @@ def my_vector_scalar(opts):
                                                    buff_ls[col][raw],
                                                    buff_ls[col][raw+reached_tile],
                                                    factor_buff,factor_FIFO_buff, 
-                                                   factor_scalar,half_bool,stage,
+                                                   factor_scalar,
+                                                   factor_scaler_index,
+                                                   half_bool,stage,
                                                    all_size_log,
                                                    size_per_core_log,
                                                    (1<< (size_per_core_log-5)),
@@ -431,6 +444,7 @@ def my_vector_scalar(opts):
                                                    buff_ls[col][raw],
                                                    factor_buff,factor_FIFO_buff,
                                                    factor_scalar,
+                                                   factor_scaler_index,
                                                    half_bool,
                                                    stage,
                                                    all_size_log,
@@ -444,6 +458,7 @@ def my_vector_scalar(opts):
 
                         
                         up_down_flag_fifo_ls[col][raw+reached_tile].release(ObjectFifoPort.Consume, 1)
+                        
                         
                         #======
                         # For next NTT
@@ -477,7 +492,7 @@ def my_vector_scalar(opts):
                                 factor_scalar = 1
                                 for _ in range(factor_scaler_index):
                                     factor_scalar = factor_scalar*factor_FIFO_buff[all_size_log-stage+size_per_core_log] % modulo_q
-
+                                    
                                 half_bool = 0
                                 NTT_stage_next_up_down(buff_ls[col-1][raw],
                                                        buff_ls[col][raw],
@@ -486,6 +501,7 @@ def my_vector_scalar(opts):
                                                        factor_buff,
                                                        factor_FIFO_buff,
                                                        factor_scalar,
+                                                       factor_scaler_index,
                                                        half_bool,
                                                        stage,
                                                        all_size_log,
@@ -494,8 +510,8 @@ def my_vector_scalar(opts):
                                                        modulo_q,
                                                        barret_w,
                                                        barret_u,
-                                                       DEBUG_OFF,
-                                                       NO_STORE_FACTOR)                            
+                                                       0,
+                                                       0)                            
                                 half_bool = 1
                                 NTT_stage_next_up_down(buff_ls[col-1][raw],
                                                        buff_ls[col][raw],
@@ -504,6 +520,7 @@ def my_vector_scalar(opts):
                                                        factor_buff,
                                                        factor_FIFO_buff,
                                                        factor_scalar,
+                                                       factor_scaler_index,
                                                        half_bool,
                                                        stage,
                                                        all_size_log,
@@ -512,14 +529,13 @@ def my_vector_scalar(opts):
                                                        modulo_q,
                                                        barret_w,
                                                        barret_u,
-                                                       DEBUG_OFF,
-                                                       STORE_FACTOR)
+                                                       0,
+                                                       1)
 
                             right_left_flag_fifo_ls[col - 1][raw].release(ObjectFifoPort.Consume, 1)
                             if col != 1:
                                 right_left_flag_fifo_ls[col][raw].release(ObjectFifoPort.Produce, 1)
                         
-
                         # =====================================
                         # SWAP 2-1
                         # Before swap:
@@ -600,6 +616,7 @@ def my_vector_scalar(opts):
                                                     factor_buff,
                                                     factor_FIFO_buff,
                                                     factor_scalar,
+                                                    factor_scaler_index,
                                                     half_bool,
                                                     stage,
                                                     all_size_log,
@@ -618,6 +635,7 @@ def my_vector_scalar(opts):
                                                     factor_buff,
                                                     factor_FIFO_buff,
                                                     factor_scalar,
+                                                    factor_scaler_index,
                                                     half_bool,
                                                     stage,
                                                     all_size_log,

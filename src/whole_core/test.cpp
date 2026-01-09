@@ -28,6 +28,7 @@
 const int32_t N_LOG = 16;
 const int32_t modulo_q = 65537;
 const int32_t w_root = 3;
+// const int32_t w_root = 60840;
 const int n_stage_for_debug = N_LOG; // 1-origin stage index
 // ===================================
 
@@ -45,7 +46,8 @@ void initialize_a(int *a, int32_t size)
 {
   for (int32_t i = 0; i < size; i++)
   {
-    a[i] = i;
+    a[i] = ((int64_t)i * i) % modulo_q;
+    // a[i] = i % modulo_q;
   }
 }
 
@@ -61,7 +63,7 @@ void initialize_twfactor(int *buff, int32_t size, int32_t mod, int32_t root)
         int w_temp = 1;
         int w_index = 1 << (i);
         for (int j = 0; j < w_index; j++){
-          w_temp = (w_temp * root) % mod;
+          w_temp = ((int64_t)w_temp * root) % mod;
         }
         buff[i + FACTOR_SIZE_PER_CORE * core] = w_temp;
     }
@@ -70,6 +72,9 @@ void initialize_twfactor(int *buff, int32_t size, int32_t mod, int32_t root)
     buff[FACTOR_SIZE_PER_CORE * core + N_LOG] = mod;
     buff[FACTOR_SIZE_PER_CORE * core + N_LOG + 1] = barrett_w;
     buff[FACTOR_SIZE_PER_CORE * core + N_LOG + 2] = barrett_u;
+  }
+  for (int i = 0; i < FACTOR_SIZE_PER_CORE; i++){
+    std::cout << "Twiddle factor[" << i << "] : " << buff[i] << "\n";
   }
 }
 
@@ -112,6 +117,8 @@ void rearrange_from_aie_order(int *data, int32_t logN, int32_t logN_per_core)
   // ===================
   // Change core order
   std::vector<int> aie_order = {0, 2, 1, 3, 8, 10, 9, 11, 4, 6, 5, 7, 12, 14, 13, 15};
+  // std::vector<int> aie_order = {0, 2, 1, 3, 4, 6, 5, 7, 8, 10, 9, 11, 12, 14, 13, 15};
+  // std::vector<int> aie_order = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
   for (int i = 0; i < CORE_NUM; i++){
     int aie_order_index = aie_order[i];
     int *temp_ptr = temp + i * N_per_core;

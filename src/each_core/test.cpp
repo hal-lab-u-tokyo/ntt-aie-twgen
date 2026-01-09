@@ -26,6 +26,7 @@
 const int32_t N_LOG = 17;
 const int32_t modulo_q = 65537;
 const int32_t w_root = 3;
+// const int32_t w_root = 60840;
 const int n_stage_for_debug = N_LOG; // 1-origin stage index
 // ===================================
 
@@ -72,7 +73,7 @@ void initialize_metadata_for_divided_ntt(int *buff, int32_t size, int32_t mod, i
         int w_temp = 1;
         int w_index = 1 << (i);
         for (int j = 0; j < w_index; j++){
-          w_temp = (w_temp * root) % mod;
+          w_temp = ((int64_t)w_temp * root) % mod;
         }
         buff[i + FACTOR_SIZE_PER_CORE * core] = w_temp;
     }

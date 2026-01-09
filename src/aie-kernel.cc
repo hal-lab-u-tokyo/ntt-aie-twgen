@@ -48,9 +48,11 @@ aie::vector<int32_t, vec_prime> vector_barrett(aie::vector<int32_t, vec_prime> &
   aie::accum<acc64, vec_prime> x_2 = aie::mul(x_1, u_vec);
   aie::vector<int32_t, vec_prime> s = x_2.template to_vector<int32_t>(w + 2);
   aie::accum<acc64, vec_prime> r = aie::mul(s, p_vec);
-  aie::vector<int32_t, vec_prime> tt = t.template to_vector<int32_t>(0);
-  aie::vector<int32_t, vec_prime> rr = r.template to_vector<int32_t>(0);
-  aie::vector<int32_t, vec_prime> c = aie::sub(tt, rr);
+  aie::accum<acc64, vec_prime> cc = aie::sub(t, r);
+  aie::vector<int32_t, vec_prime> c = cc.template to_vector<int32_t>(0);
+  // aie::vector<int32_t, vec_prime> tt = t.template to_vector<int32_t>(0);
+  // aie::vector<int32_t, vec_prime> rr = r.template to_vector<int32_t>(0);
+  // aie::vector<int32_t, vec_prime> c = aie::sub(tt, rr);
   aie::mask<vec_prime> mask_c_lt_p = aie::lt(c, p_vec);
   aie::vector<int32_t, vec_prime> over_c = aie::select(p_vec, 0, mask_c_lt_p);
   aie::vector<int32_t, vec_prime> barrett = aie::sub(c, over_c);
@@ -81,9 +83,11 @@ vector_barrett_half(const aie::vector<int32_t, vec_prime_half> &v, const aie::ve
   aie::accum<acc64, vec_prime_half> x_2 = aie::mul(x_1, u_vec);
   aie::vector<int32_t, vec_prime_half> s = x_2.template to_vector<int32_t>(w + 2);
   aie::accum<acc64, vec_prime_half> r = aie::mul(s, p_vec);
-  aie::vector<int32_t, vec_prime_half> tt = t.template to_vector<int32_t>(0);
-  aie::vector<int32_t, vec_prime_half> rr = r.template to_vector<int32_t>(0);
-  aie::vector<int32_t, vec_prime_half> c = aie::sub(tt, rr);
+  aie::accum<acc64, vec_prime_half> cc = aie::sub(t, r);
+  aie::vector<int32_t, vec_prime_half> c = cc.template to_vector<int32_t>(0);
+  // aie::vector<int32_t, vec_prime_half> tt = t.template to_vector<int32_t>(0);
+  // aie::vector<int32_t, vec_prime_half> rr = r.template to_vector<int32_t>(0);
+  // aie::vector<int32_t, vec_prime_half> c = aie::sub(tt, rr);
   aie::mask<vec_prime_half> mask_c_lt_p = aie::lt(c, p_vec);
   aie::vector<int32_t, vec_prime_half> over_c = aie::select(p_vec, 0, mask_c_lt_p);
   aie::vector<int32_t, vec_prime_half> barrett = aie::sub(c, over_c);
@@ -177,6 +181,7 @@ extern "C"
     aie::vector<int32_t, vec_prime> factor_vec_2;
 
     aie::vector<int32_t, vec_prime> factor_vec_stage;
+    
 
     // On-the-fly compute factor vectors
     aie::vector<int32_t, vec_prime> factor_vec;
@@ -372,7 +377,7 @@ extern "C"
     event1();
   }
 
-  void NTT_stage_next_up_down(int32_t *buff_in_1, int32_t *buff_in_2, int32_t *buff_out_1, int32_t *buff_out_2, int32_t *factor_buff, int32_t *factor_fifo_buff, int32_t factor_scalar, int32_t half_bool, int32_t stage, int32_t all_size_log, int32_t size_per_core_log, int32_t times, 
+  void NTT_stage_next_up_down(int32_t *buff_in_1, int32_t *buff_in_2, int32_t *buff_out_1, int32_t *buff_out_2, int32_t *factor_buff, int32_t *factor_fifo_buff, int32_t factor_scalar, int32_t factor_scalar_index, int32_t half_bool, int32_t stage, int32_t all_size_log, int32_t size_per_core_log, int32_t times, 
     int32_t modulo_q, int32_t barret_w, int32_t barret_u, int32_t if_debug, int if_store_factor)
   {
     // factor_scale : 基準のfactor_buffに "factor_scale倍して計算をしていく"
@@ -386,6 +391,16 @@ extern "C"
 
     aie::vector<int32_t, vec_prime> q_vector = aie::broadcast<int32_t, vec_prime>(modulo_q);
     aie::vector<int32_t, vec_prime> u_vector = aie::broadcast<int32_t, vec_prime>(barret_u);
+
+    if (factor_scalar == -1) {
+      // compute factor_scalar from factor_scalar_index
+      // int32_t tmp = 1;
+      // // TODO:
+      // for (int32_t i = 0; i < factor_scalar_index; i++) {
+      //   tmp = barrett(tmp, modulo_q, factor_fifo_buff[all_size_log - stage + size_per_core_log], barret_u, barret_w);
+      // }
+      // factor_scalar = tmp;
+    }
     
     // Generate factor_vec for next stage
     // このstageでは、loadしたfactor_vecを
@@ -393,7 +408,8 @@ extern "C"
     // (ii) half_bool == 1 のときは factor_scalar倍したものを使う
     // 次のstageのために、factor_vecとfactor_vec * factor_scalarのzipしたものをfactor_buffに保存する
     aie::vector<int32_t, vec_prime> factor_vec = aie::load_v<vec_prime>(factor_buff);
-    if (if_store_factor == 1){
+    if (if_store_factor == 1)
+    {
       aie::vector<int32_t, vec_prime> factor_vec_1 = aie::load_v<vec_prime>(factor_buff);
       aie::vector<int32_t, vec_prime> factor_vec_stage = aie::broadcast<int32_t, vec_prime>(factor_fifo_buff[all_size_log - stage]);
       aie::vector<int32_t, vec_prime> factor_vec_2 = vector_barrett(factor_vec_1, q_vector, factor_vec_stage, u_vector, barret_w);

@@ -308,7 +308,7 @@ extern "C"
 
   // DIF NTT
   void NTT_stage_up(int32_t *buff_in, int32_t *buff_out, int32_t *factor_buff, int32_t *factor_fifo_buff, int32_t stage, int32_t all_size_log, int32_t size_per_core_log, 
-    int32_t modulo_q, int32_t barret_w, int32_t barret_u, int32_t w_offset = 1)
+    int32_t modulo_q, int32_t barret_w, int32_t barret_u, int32_t w_offset)
   {
     event0();
 
@@ -330,6 +330,7 @@ extern "C"
       int32_t *factor_temp_index = factor_buff + vec_prime * index;
       aie::vector<int32_t, vec_prime> factor_vec_1 = aie::load_v<vec_prime>(factor_temp_index);
       aie::vector<int32_t, vec_prime> factor_vec_2 = vector_barrett(factor_vec_stage, q_vector, factor_vec_1, u_vector, barret_w);
+      
       auto [res, res2] = aie::interleave_zip(factor_vec_1, factor_vec_2, 1);
       aie::store_v(factor_buff + index * vec_prime * 2, res);
       aie::store_v(factor_buff + index * vec_prime * 2 + vec_prime, res2);

@@ -13,8 +13,6 @@
 #include <cstdint>
 #include <fstream>
 #include <iostream>
-#include <sstream>
-#include <bitset>
 
 #include "../nttlib.h"
 #include "test_utils.h"
@@ -66,7 +64,7 @@ void initialize_a(int *a, int32_t size)
 // Output buffer consists of `COL_NUM` loops of `FACTOR_SIZE_PER_CORE` metadatas
 // Each `FACTOR_SIZE_PER_CORE` buffer is:
 // [w, w^2, w^4, w^8, ..., w^(2^(N_LOG-1)), modulus, barrett_w, barrett_u]
-void initialize_metadata(int *buff, int32_t size, int32_t mod, int32_t root, int32_t logn_for_current_ntt, int32_t if_phase2)
+void initialize_metadata_for_divided_ntt(int *buff, int32_t size, int32_t mod, int32_t root, int32_t logn_for_current_ntt, int32_t if_phase2)
 {
   assert(size == FACTOR_SIZE_PER_CORE * COL_NUM);
   for (int core = 0; core < CORE_NUM; core++){
@@ -126,36 +124,17 @@ void rearrange_to_aie_order(int *data, int logN, int logN_per_block)
 // Rearrange data from AIE's output order to normal order
 // Arguments:
 // logN: log2 of total data size
-// logN_per_block: log2 of data size per block (phase)
-//   - for whole-core NTT: log2 of data size per core, i.e., LOGN - CORE_NUM_LOG
-//   - for each-core NTT: log2 of N for current phase
-void rearrange_from_aie_order(int *data, int32_t logN, int32_t logN_per_block, bool if_divided)
+// logN_per_block: log2 of N for current phase
+void rearrange_from_aie_order_for_divided_ntt(int *data, int32_t logN, int32_t logN_per_block)
 {
   int N = 1 << logN;
   int N_per_block = 1 << logN_per_block;
   int number_of_blocks = N / N_per_block;
   int *temp = new int[N];
 
-  if (if_divided) {
-    // If not swapped, just copy data to temp
-    for (int i = 0; i < N; i++)
-    {
-      temp[i] = data[i];
-    }
-  }else {
-    // ===================
-    // Inter block order
-    // ===================
-    // Change core order
-    std::vector<int> aie_order = {0, 2, 1, 3, 8, 10, 9, 11, 4, 6, 5, 7, 12, 14, 13, 15};
-    for (int i = 0; i < number_of_blocks; i++){
-      int aie_order_index = aie_order[i];
-      int *temp_ptr = temp + i * N_per_block;
-      int *aie_ptr = data + aie_order_index * N_per_block;
-      for (int j = 0; j < N_per_block; j++){
-        temp_ptr[j] = aie_ptr[j];
-      }
-    }
+  for (int i = 0; i < N; i++)
+  {
+    temp[i] = data[i];
   }
 
   // ===================
@@ -357,12 +336,10 @@ int main(int argc, const char *argv[])
 
   for (unsigned iter = 0; iter < n_iterations; iter++)
   {
+    std::cout << "====================\n";
+    
     unsigned int opcode = 3;
 
-    // ===================================
-    // Initialize input data for each iteration
-    // ===================================
-    
     // ===================================
     // Prepare for Phase1
     // ===================================
@@ -372,8 +349,8 @@ int main(int argc, const char *argv[])
     rearrange_to_aie_order(bufInA, N_LOG, N_LOG_PHASE1);
 
     // Twiddle factors
-    initialize_metadata(bufInFactor, IN_FACTOR_SIZE, modulo_q, w_root, N_LOG_PHASE1, FLAG_PHASE1);
-    
+    initialize_metadata_for_divided_ntt(bufInFactor, IN_FACTOR_SIZE, modulo_q, w_root, N_LOG_PHASE1, FLAG_PHASE1);
+
     // Clear output buffer
     memset(bufOutE, 0, OUT_SIZE * sizeof(int));
 
@@ -383,11 +360,6 @@ int main(int argc, const char *argv[])
     bo_outE.sync(XCL_BO_SYNC_BO_TO_DEVICE);
 
 
-    std::cout << "====================\n";
-    if (verbosity >= 1)
-    {
-      std::cout << "Running Kernel.\n";
-    }
     auto start = std::chrono::high_resolution_clock::now();
     
     // ===================================
@@ -406,8 +378,8 @@ int main(int argc, const char *argv[])
     rearrange_and_rotl(bufInA, bufOutE, N_LOG, N_LOG_PHASE1, N_LOG_PHASE2, N_LOG_PHASE1);
     
     // Twiddle factors
-    initialize_metadata(bufInFactor, IN_FACTOR_SIZE, modulo_q, w_root, N_LOG_PHASE2, FLAG_PHASE2);
-    
+    initialize_metadata_for_divided_ntt(bufInFactor, IN_FACTOR_SIZE, modulo_q, w_root, N_LOG_PHASE2, FLAG_PHASE2);
+
     bo_inA.sync(XCL_BO_SYNC_BO_TO_DEVICE);
     bo_in_factor.sync(XCL_BO_SYNC_BO_TO_DEVICE);
     bo_outE.sync(XCL_BO_SYNC_BO_TO_DEVICE); // This sync is required
@@ -423,7 +395,7 @@ int main(int argc, const char *argv[])
     auto stop = std::chrono::high_resolution_clock::now();
     
     // Rearrange output data to normal order
-    rearrange_from_aie_order(bufOutE, N_LOG, N_LOG_PHASE2, true);
+    rearrange_from_aie_order_for_divided_ntt(bufOutE, N_LOG, N_LOG_PHASE2);
     rotl_array(bufOutE, bufOutE, N_LOG, N_LOG_PHASE2);
 
     // ===================================

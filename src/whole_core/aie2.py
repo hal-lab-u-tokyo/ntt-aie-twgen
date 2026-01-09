@@ -67,11 +67,11 @@ def my_vector_scalar(opts):
         # ===================
         NTT_stage_down = external_func(
             "NTT_stage_down",
-            inputs = [cores_ty,cores_ty,factor_buff_ty,factor_FIFO_ty,np.int32,  np.int32,np.int32, np.int32, np.int32,np.int32],
+            inputs = [cores_ty,cores_ty,factor_buff_ty,factor_FIFO_ty,np.int32,  np.int32,np.int32, np.int32, np.int32,np.int32,np.int32],
         )
         NTT_stage_up = external_func(
             "NTT_stage_up",
-            inputs = [cores_ty,cores_ty,factor_buff_ty,factor_FIFO_ty,np.int32, np.int32, np.int32,np.int32, np.int32, np.int32],
+            inputs = [cores_ty,cores_ty,factor_buff_ty,factor_FIFO_ty,np.int32, np.int32, np.int32,np.int32, np.int32, np.int32, np.int32],
         )
 
         vector_copy = external_func(
@@ -253,10 +253,10 @@ def my_vector_scalar(opts):
                         
                         stage_compute_in_tile = all_size_log - 4
                         for stage in range(1,6):
-                            NTT_stage_down(buff,buff,factor_buff,factor_FIFO_buff,stage,all_size_log,size_per_core_log,modulo_q,barret_w,barret_u)
+                            NTT_stage_down(buff,buff,factor_buff,factor_FIFO_buff,stage,all_size_log,size_per_core_log,modulo_q,barret_w,barret_u, 1)
 
                         for stage in range(6, stage_compute_in_tile + 1):
-                            NTT_stage_up(buff,buff,factor_buff,factor_FIFO_buff,stage,all_size_log,size_per_core_log,modulo_q,barret_w,barret_u)
+                            NTT_stage_up(buff,buff,factor_buff,factor_FIFO_buff,stage,all_size_log,size_per_core_log,modulo_q,barret_w,barret_u, 1)
 
                         up_down_flag_fifo_ls[col][raw].release(ObjectFifoPort.Produce, 1)
                         

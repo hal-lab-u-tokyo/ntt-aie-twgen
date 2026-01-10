@@ -18,21 +18,15 @@ from aie.dialects.aiex import *
 from aie.helpers.dialects.ext.scf import _for as range_
 from aie.extras.context import mlir_mod_ctx
 
-# ===================================
-# Change here for different configurations
-all_size_log = 16
-# ===================================
-
 DEBUG_ON = 1
 DEBUG_OFF = 0
 STORE_FACTOR = 1
 NO_STORE_FACTOR = 0    
 
-def my_vector_scalar(opts):
+def my_vector_scalar(trace_size, all_size_log):
 
     # enableTrace = opts.trace_size > 0
     enableTrace = False
-    trace_size = opts.trace_size
 
     col_num_log = 2
     raw_num_log = 2
@@ -707,16 +701,17 @@ if __name__ == "__main__":
         type=int,
         help="trace size in bytes",
     )
+    p.add_argument("-n", "--logN", required=True, dest="logN", help="Polynomial size")
     opts = p.parse_args(sys.argv[1:])
+    trace_size = int(opts.trace_size)
+    all_size_log = int(opts.logN)
+    if all_size_log >= 16:
+        # we do not use tuboi NTT, so change to some nice number
+        all_size_log = 16
     with mlir_mod_ctx() as ctx:
-        my_vector_scalar(opts)
+        my_vector_scalar(trace_size, all_size_log)
         res = ctx.module.operation.verify()
         if res == True:
             print(ctx.module)
         else:
             print(res)
-
-
-
-
-

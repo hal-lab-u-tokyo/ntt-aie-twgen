@@ -21,21 +21,15 @@ import aie.extras.dialects.ext.arith as arith
 from aie.helpers.util import np_dtype_to_mlir_type
 from aie.extras import types as T
 
-# ===================================
-# Change here for different configurations
-all_size_log = 17
-# ===================================
-
 DEBUG_ON = 1
 DEBUG_OFF = 0
 STORE_FACTOR = 1
 NO_STORE_FACTOR = 0    
 
-def divided_ntt_internal(opts):
+def divided_ntt_internal(trace_size, all_size_log):
 
     # enableTrace = opts.trace_size > 0
     enableTrace = False
-    trace_size = opts.trace_size
 
     col_num_log = 2
     raw_num_log = 2
@@ -242,9 +236,12 @@ if __name__ == "__main__":
         type=int,
         help="trace size in bytes",
     )
+    p.add_argument("-n", "--logN", required=True, dest="logN", help="Polynomial size")
     opts = p.parse_args(sys.argv[1:])
+    trace_size = int(opts.trace_size)
+    all_size_log = int(opts.logN)
     with mlir_mod_ctx() as ctx:
-        divided_ntt_internal(opts)
+        divided_ntt_internal(trace_size=trace_size, all_size_log=all_size_log)
         res = ctx.module.operation.verify()
         if res == True:
             print(ctx.module)

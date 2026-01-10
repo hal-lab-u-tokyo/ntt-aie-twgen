@@ -15,15 +15,12 @@ all: build/final.xclbin
 
 targetname = ntt
 
-trace_size = 8192
+logN ?= 16
+trace_size = 0
 
 build/aie.mlir: ${srcdir}/aie2.py
 	mkdir -p ${@D}
-	python3 $< > $@
-
-build/aie_trace.mlir: ${srcdir}/aie2.py
-	mkdir -p ${@D}
-	python3 $< -t ${trace_size} > $@
+	python3 $< -t ${trace_size} -n ${logN} > $@
 
 build/aie-kernel.o: ${srcdir}/../aie-kernel.cc
 	mkdir -p ${@D}

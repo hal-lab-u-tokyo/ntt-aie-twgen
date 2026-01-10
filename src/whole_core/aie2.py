@@ -23,11 +23,10 @@ DEBUG_OFF = 0
 STORE_FACTOR = 1
 NO_STORE_FACTOR = 0    
 
-def my_vector_scalar(trace_size, all_size_log):
+def ntt(trace_size, all_size_log):
 
-    # enableTrace = opts.trace_size > 0
     enableTrace = False
-
+    
     col_num_log = 2
     raw_num_log = 2
     size_per_vec_log = 4
@@ -483,10 +482,7 @@ def my_vector_scalar(trace_size, all_size_log):
                                     factor_scaler_index = 1
                                 elif raw == 3:
                                     factor_scaler_index = 3
-                                factor_scalar = 1
-                                for _ in range(factor_scaler_index):
-                                    factor_scalar = factor_scalar*factor_FIFO_buff[all_size_log-stage+size_per_core_log] % modulo_q
-                                    
+                                factor_scalar = -1
                                 half_bool = 0
                                 NTT_stage_next_up_down(buff_ls[col-1][raw],
                                                        buff_ls[col][raw],
@@ -599,10 +595,7 @@ def my_vector_scalar(trace_size, all_size_log):
                                 factor_scaler_index = 3
                             if col == 3:
                                 factor_scaler_index = factor_scaler_index + 4
-                            factor_scalar = 1
-                            for _ in range(factor_scaler_index):
-                                factor_scalar = factor_scalar*factor_FIFO_buff[all_size_log-stage+size_per_core_log] % modulo_q
-
+                            factor_scalar = -1
                             NTT_stage_next_up_down(buff_ls[col-1][raw],
                                                     buff_ls[col][raw],
                                                     buff_ls[col-1][raw],
@@ -705,11 +698,10 @@ if __name__ == "__main__":
     opts = p.parse_args(sys.argv[1:])
     trace_size = int(opts.trace_size)
     all_size_log = int(opts.logN)
-    if all_size_log >= 16:
-        # we do not use tuboi NTT, so change to some nice number
-        all_size_log = 16
+    if all_size_log > 16:
+        raise ValueError("This configuration requires logN < 16 due to AIE resource limitation.")
     with mlir_mod_ctx() as ctx:
-        my_vector_scalar(trace_size, all_size_log)
+        ntt(trace_size, all_size_log)
         res = ctx.module.operation.verify()
         if res == True:
             print(ctx.module)

@@ -394,12 +394,12 @@ extern "C"
 
     if (factor_scalar == -1) {
       // compute factor_scalar from factor_scalar_index
-      // int32_t tmp = 1;
-      // // TODO:
-      // for (int32_t i = 0; i < factor_scalar_index; i++) {
-      //   tmp = barrett(tmp, modulo_q, factor_fifo_buff[all_size_log - stage + size_per_core_log], barret_u, barret_w);
-      // }
-      // factor_scalar = tmp;
+      aie::vector<int32_t, vec_prime> scalar_vec = aie::broadcast<int32_t, vec_prime>(factor_fifo_buff[all_size_log - stage + size_per_core_log]);
+      aie::vector<int32_t, vec_prime> res = aie::broadcast<int32_t, vec_prime>(1);
+      for (int32_t i = 0; i < factor_scalar_index; i++) {
+        res = vector_barrett(res, q_vector, scalar_vec, u_vector, barret_w);
+      }
+      factor_scalar = res[0];
     }
     
     // Generate factor_vec for next stage
@@ -445,7 +445,7 @@ extern "C"
 
       aie::store_v(BF_index_out_1, add);
       aie::store_v(BF_index_out_2, sub);
-      
+
       factor_vec = vector_barrett(factor_vec, q_vector, factor_vec_stage_2_full, u_vector, barret_w);
     }
     event1();

@@ -27,8 +27,8 @@
 // ===================================
 const int32_t N_LOG = 16;
 const int32_t modulo_q = 65537;
-const int32_t w_root = 3;
-// const int32_t w_root = 60840;
+// const int32_t w_root = 3;
+const int32_t w_root = 60840;
 const int n_stage_for_debug = N_LOG; // 1-origin stage index
 // ===================================
 

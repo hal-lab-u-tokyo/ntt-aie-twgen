@@ -20,7 +20,7 @@ logN ?= 16
 
 build/aie.mlir: ${srcdir}/aie2.py
 	mkdir -p ${@D}
-	python3 $< -n ${logN} -t ${trace_size} >> $@
+	python3 $< -n ${logN} -t ${trace_size} > $@
 
 build/aie-kernel.o: ${srcdir}/../aie-kernel.cc
 	mkdir -p ${@D}
